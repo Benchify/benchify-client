@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "benchify"
+version = "0.0.1"
+authors = [
+  { name="Max von Hippel", email="max@benchify.ai" },
+  { name="Juan Castaño", email="juan@benchify.ai" },
+]
+description = "Formal code intelligence"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Benchify/benchify-api"
+Issues = "https://github.com/Benchify/benchify-api/issues"
