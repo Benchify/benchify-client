@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "benchify"
-version = "0.0.1"
+version = "0.0.2"
 authors = [
   { name="Max von Hippel", email="max@benchify.ai" },
   { name="Juan Castaño", email="juan@benchify.ai" },
@@ -17,6 +17,15 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dependencies = [
+    "rich",
+    "requests",
+    "auth0-python",
+    "typer",
+]
+
+[project.scripts]
+benchify = "benchify.main:analyze"
 
 [project.urls]
 Homepage = "https://github.com/Benchify/benchify-api"
