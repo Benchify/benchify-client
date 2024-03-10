@@ -6,6 +6,8 @@ import typer
 import webbrowser
 import os
 import sys
+import ast
+import json
 
 from auth0.authentication.token_verifier \
     import TokenVerifier, AsymmetricSignatureVerifier
@@ -16,13 +18,11 @@ from rich.markdown import Markdown
 
 app = typer.Typer()
 
-AUTH0_DOMAIN = 'dev-ig102iz7wc8zzdws.us.auth0.com'
+AUTH0_DOMAIN    = 'dev-ig102iz7wc8zzdws.us.auth0.com'
 AUTH0_CLIENT_ID = 'ey2Wan6KRIpskOm040sqIVWEIPdKtDVl'
-ALGORITHMS = ['RS256']
-
-id_token = None
-
-current_user = None
+ALGORITHMS      = ['RS256']
+id_token        = None
+current_user    = None
 
 def validate_token(id_token):
     """
@@ -74,15 +74,13 @@ def login():
 
     authenticated = False
     while not authenticated:
-        print('Checking if the user completed the flow...')
+        print('Authenticating ...')
         token_response = requests.post(
             'https://{}/oauth/token'.format(AUTH0_DOMAIN), data=token_payload)
 
         token_data = token_response.json()
         if token_response.status_code == 200:
-            print('Authenticated!')
-            print('- Id Token: {}...'.format(token_data['id_token'][:10]))
-
+            print('✅ Authenticated!')
             validate_token(token_data['id_token'])
             global current_user
             current_user = jwt.decode(
@@ -103,11 +101,25 @@ def login():
 def authenticate():
     if current_user is None:
         login()
-    print("<<< SUCCESS : " + str(current_user) + " >>>>")
+    print("✅ Logged in " + str(current_user))
 
+def get_function_source(ast_tree, function_name, code):
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            start_line = node.lineno
+            end_line = node.end_lineno
+            function_source = '\n'.join(
+                code.splitlines()[start_line - 1:end_line])
+            return function_source
+    # Return None if the function was not found
+    return None
 
 @app.command()
 def analyze():
+    if len(sys.argv) == 1:
+        print("⬇️ Please specify the file to be analyzed.")
+        return
+
     file = sys.argv[1]
     
     if current_user is None:
@@ -118,12 +130,30 @@ def analyze():
     try:
         with open(file, "r") as fr:
             function_str = fr.read()
+            # is there more than one function in the file?
+            if function_str.count("def ") > 1:
+                if len(sys.argv) == 2:
+                    print("Since there is more than one function in the " + \
+                        "file, please specify which one you want to " + \
+                        "analyze, e.g., \n$ benchify sortlib.py isort")
+                    return
+                else:
+                    tree = ast.parse(function_str)
+                    function_str = get_function_source(
+                        tree, sys.argv[2], function_str)
+                    if function_str:
+                        pass
+                    else:
+                        print(f"🔍 Function named {sys.argv[1]} not " + \
+                            f"found in {sys.argv[0]}.")
+                        return
     except Exception as e:
-        print(f"Encountered exception trying to read {file}: {e}.")
-        print("Cannot continue 😢.")
+        print(f"Encountered exception trying to read {file}: {e}." + \
+            " Cannot continue 😢.")
         return
     if function_str == None:
-        print(f"Error attempting to read {file}.  Cannot continue 😢.")
+        print(f"Error attempting to read {file}." + \
+            " Cannot continue 😢.")
         return
     
     console = Console()
