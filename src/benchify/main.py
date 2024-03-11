@@ -18,8 +18,8 @@ from rich.markdown import Markdown
 
 app = typer.Typer()
 
-AUTH0_DOMAIN    = 'dev-ig102iz7wc8zzdws.us.auth0.com'
-AUTH0_CLIENT_ID = 'ey2Wan6KRIpskOm040sqIVWEIPdKtDVl'
+AUTH0_DOMAIN    = 'benchify.us.auth0.com'
+AUTH0_CLIENT_ID = 'VessO49JLtBhlVXvwbCDkeXZX4mHNLFs'
 ALGORITHMS      = ['RS256']
 id_token        = None
 current_user    = None
@@ -48,7 +48,7 @@ def login():
     device_code_response = requests.post(
         'https://{}/oauth/device/code'.format(AUTH0_DOMAIN), 
         data=device_code_payload)
-
+    
     if device_code_response.status_code != 200:
         print('Error generating the device code')
         raise typer.Exit(code=1)
@@ -128,6 +128,7 @@ def analyze():
     function_str = None
     
     try:
+        print("Scanning " + file + " ...")
         with open(file, "r") as fr:
             function_str = fr.read()
             # is there more than one function in the file?
@@ -159,6 +160,7 @@ def analyze():
     console = Console()
     url = "https://benchify.fly.dev/analyze"
     params = {'test_func': function_str, 'current_user': current_user}
+    print("Analyzing.  Should take about 1 minute ...")
     response = requests.get(url, params=params)
     console.print(response.text)
 
