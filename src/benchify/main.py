@@ -37,6 +37,13 @@ def validate_token(id_token):
         audience=AUTH0_CLIENT_ID)
     tv.verify(id_token)
 
+class AuthTokens:
+    id_token: str = ""
+    access_token: str = ""
+    def __init__(self, id_token, access_token):
+        self.id_token = id_token
+        self.access_token = access_token
+
 def login():
     """
     Runs the device authorization flow and stores the user object in memory
@@ -79,6 +86,7 @@ def login():
             'https://{}/oauth/token'.format(AUTH0_DOMAIN), data=token_payload)
 
         token_data = token_response.json()
+        print(str(token_data))
         if token_response.status_code == 200:
             print('✅ Authenticated!')
             validate_token(token_data['id_token'])
@@ -96,6 +104,10 @@ def login():
             raise typer.Exit(code=1)
         else:
             time.sleep(device_code_data['interval'])
+    return AuthTokens(
+        id_token=token_data['id_token'],
+        access_token=token_data['access_token']
+    )
 
 @app.command()
 def authenticate():
@@ -123,7 +135,7 @@ def analyze():
     file = sys.argv[1]
     
     if current_user is None:
-        login()
+        auth_tokens = login()
         print(f"Welcome {current_user['name']}!")
     function_str = None
     
@@ -158,10 +170,11 @@ def analyze():
         return
     
     console = Console()
-    url = "https://benchify.fly.dev/analyze"
-    params = {'test_func': function_str, 'current_user': current_user}
+    url = "https://benchify.cloud/analyze"
+    params = {'test_func': function_str}
+    headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     print("Analyzing.  Should take about 1 minute ...")
-    response = requests.get(url, params=params)
+    response = requests.get(url, params=params, headers=headers)
     console.print(response.text)
 
 if __name__ == "__main__":
