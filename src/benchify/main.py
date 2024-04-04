@@ -86,7 +86,6 @@ def login():
             'https://{}/oauth/token'.format(AUTH0_DOMAIN), data=token_payload)
 
         token_data = token_response.json()
-        print(str(token_data))
         if token_response.status_code == 200:
             print('✅ Authenticated!')
             validate_token(token_data['id_token'])
