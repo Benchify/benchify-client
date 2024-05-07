@@ -5,15 +5,21 @@ manipulation of the python file
 import ast
 from typing import Optional
 
-def get_only_function(function_str: str) -> Optional[str]:
+def get_all_function_names(ast_tree: ast.AST) -> list[str]:
     """
-    this one has only one def inside, so assume it is just a single function
-    there might be other stuff in the file
-    like if name == main
-    so should get just that part rather than just identity as below
-    TODO
+    Extracts all function names from the provided AST tree, including named lambda functions.
     """
-    return function_str
+    function_names = []
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.FunctionDef):
+            function_names.append(node.name)
+        elif isinstance(node, ast.Assign):
+            # Check if the assigned value is a lambda
+            if isinstance(node.value, ast.Lambda):
+                # Check if the target is a single name (not handling tuple unpacking)
+                if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                    function_names.append(node.targets[0].id)
+    return function_names
 
 def get_function_source_from_source(function_str: str, function_name: str) -> Optional[str]:
     """
@@ -41,6 +47,14 @@ def get_function_source(ast_tree: ast.AST, function_name: str, code: str) -> Opt
     # if the function was not found
     return None
 
+def test_get_all_function_names():
+    my_example = """
+banana = lambda x : "banana"
+
+def hotdog(a, b):
+    return a + b
+"""
+    assert get_all_function_names(ast.parse(my_example)) == ["banana", "hotdog"]
 
 def test_function_src():
     """

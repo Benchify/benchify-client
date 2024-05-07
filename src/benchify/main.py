@@ -17,7 +17,8 @@ from auth0.authentication.token_verifier \
 from rich import print as rprint
 from rich.console import Console
 
-from src.benchify.source_manipulation import get_function_source, get_only_function
+from src.benchify.source_manipulation import \
+    get_function_source, get_all_function_names
 
 app = typer.Typer()
 
@@ -156,15 +157,16 @@ def analyze():
         #pylint:disable=unspecified-encoding
         with open(file, "r", encoding=None) as file_reading:
             function_str = file_reading.read()
+            tree = ast.parse(function_str)
             # is there more than one function in the file?
-            number_of_functions = function_str.count("def ")
-            if number_of_functions > 1:
+            function_names = get_all_function_names(tree)
+            if len(function_names) > 1:
                 if len(sys.argv) == 2:
                     rprint("Since there is more than one function in the " + \
                         "file, please specify which one you want to " + \
-                        "analyze, e.g., \n$ benchify sortlib.py isort")
+                        "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
                     return
-                tree = ast.parse(function_str)
+                
                 function_name = sys.argv[2]
                 function_str = get_function_source(
                     tree, function_name, function_str)
@@ -175,7 +177,8 @@ def analyze():
                         f"found in {file}.")
                     return
             elif number_of_functions == 1:
-                function_str = get_only_function(function_str)
+                function_str = get_function_source(
+                    tree, function_names[0], function_str)
             else:
                 rprint(f"There were no functions in {file}." + \
                     " Cannot continue 😢.")
