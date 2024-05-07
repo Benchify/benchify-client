@@ -1,50 +1,60 @@
-import requests
+"""
+exposes the API for benchify
+"""
+
 import sys
 import time
+from typing import Any, Dict
+import webbrowser
+import ast
+import requests
 import jwt
 import typer
-import webbrowser
-import os
-import sys
-import ast
-import json
 
 from auth0.authentication.token_verifier \
     import TokenVerifier, AsymmetricSignatureVerifier
 
-from rich import print
+from rich import print as rprint
 from rich.console import Console
-from rich.markdown import Markdown
+
+from benchify.source_manipulation import \
+    get_function_source, get_all_function_names
 
 app = typer.Typer()
 
 AUTH0_DOMAIN    = 'benchify.us.auth0.com'
 AUTH0_CLIENT_ID = 'VessO49JLtBhlVXvwbCDkeXZX4mHNLFs'
 ALGORITHMS      = ['RS256']
+#pylint:disable=invalid-name
 id_token        = None
+#pylint:disable=invalid-name
 current_user    = None
 
-def validate_token(id_token):
+def validate_token(token_to_validate: str) -> Dict[str,Any]:
     """
     Verify the token and its precedence
     """
-    jwks_url = 'https://{}/.well-known/jwks.json'.format(AUTH0_DOMAIN)
-    issuer = 'https://{}/'.format(AUTH0_DOMAIN)
-    sv = AsymmetricSignatureVerifier(jwks_url)
-    tv = TokenVerifier(
-        signature_verifier=sv, 
-        issuer=issuer, 
+    jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
+    issuer = f"https://{AUTH0_DOMAIN}/"
+    sign_verifier = AsymmetricSignatureVerifier(jwks_url)
+    token_verifier = TokenVerifier(
+        signature_verifier=sign_verifier,
+        issuer=issuer,
         audience=AUTH0_CLIENT_ID)
-    tv.verify(id_token)
+    decoded_payload = token_verifier.verify(token_to_validate)
+    return decoded_payload
 
 class AuthTokens:
+    """
+    id and access tokens
+    """
     id_token: str = ""
     access_token: str = ""
-    def __init__(self, id_token, access_token):
-        self.id_token = id_token
+    def __init__(self, my_id_token, access_token):
+        self.id_token = my_id_token
         self.access_token = access_token
 
-def login():
+def login() -> AuthTokens:
     """
     Runs the device authorization flow and stores the user object in memory
     """
@@ -52,25 +62,31 @@ def login():
         'client_id': AUTH0_CLIENT_ID,
         'scope': 'openid profile'
     }
-    device_code_response = requests.post(
-        'https://{}/oauth/device/code'.format(AUTH0_DOMAIN), 
-        data=device_code_payload)
-    
-    if device_code_response.status_code != 200:
-        print('Error generating the device code')
+    login_timeout = 60
+    try:
+        device_code_response = requests.post(
+            f"https://{AUTH0_DOMAIN}/oauth/device/code", 
+            data=device_code_payload, timeout=login_timeout)
+    except requests.exceptions.Timeout:
+        rprint('Error generating the device code')
+        #pylint:disable=raise-missing-from
         raise typer.Exit(code=1)
 
-    print('Device code successful')
+    if device_code_response.status_code != 200:
+        rprint('Error generating the device code')
+        raise typer.Exit(code=1)
+
+    rprint('Device code successful')
     device_code_data = device_code_response.json()
 
-    print(
+    rprint(
         '1. On your computer or mobile device navigate to: ', 
         device_code_data['verification_uri_complete'])
-    print('2. Enter the following code: ', device_code_data['user_code'])
+    rprint('2. Enter the following code: ', device_code_data['user_code'])
 
     try:
-        webbrowser.open(device_code_data['verification_uri_complete'])
-    except Exception as e:
+        webbrowser.open(device_code_data['verification_uri_complete'], new=1)
+    except webbrowser.Error as _browser_exception:
         pass
 
     token_payload = {
@@ -81,99 +97,116 @@ def login():
 
     authenticated = False
     while not authenticated:
-        print('Authenticating ...')
+        rprint('Authenticating ...')
         token_response = requests.post(
-            'https://{}/oauth/token'.format(AUTH0_DOMAIN), data=token_payload)
+            f"https://{AUTH0_DOMAIN}/oauth/token", data=token_payload,timeout=None)
 
         token_data = token_response.json()
         if token_response.status_code == 200:
-            print('✅ Authenticated!')
-            validate_token(token_data['id_token'])
+            rprint('✅ Authenticated!')
+            _ = validate_token(token_data['id_token'])
+            #pylint:disable=global-statement
             global current_user
             current_user = jwt.decode(
-                token_data['id_token'], 
-                algorithms=ALGORITHMS, 
+                token_data['id_token'],
+                algorithms=ALGORITHMS,
                 options={"verify_signature": False})
 
             authenticated = True
             # Save the current_user.
 
         elif token_data['error'] not in ('authorization_pending', 'slow_down'):
-            print(token_data['error_description'])
+            rprint(token_data['error_description'])
             raise typer.Exit(code=1)
         else:
             time.sleep(device_code_data['interval'])
     return AuthTokens(
-        id_token=token_data['id_token'],
+        my_id_token=token_data['id_token'],
         access_token=token_data['access_token']
     )
 
 @app.command()
 def authenticate():
+    """
+    login if not already
+    """
     if current_user is None:
         login()
-    print("✅ Logged in " + str(current_user))
-
-def get_function_source(ast_tree, function_name, code):
-    for node in ast.walk(ast_tree):
-        if isinstance(node, ast.FunctionDef) and node.name == function_name:
-            start_line = node.lineno
-            end_line = node.end_lineno
-            function_source = '\n'.join(
-                code.splitlines()[start_line - 1:end_line])
-            return function_source
-    # Return None if the function was not found
-    return None
+    rprint("✅ Logged in " + str(current_user))
 
 @app.command()
 def analyze():
+    """
+    send the request to analyze the function specified by the command line arguments
+    and show the results
+    """
     if len(sys.argv) == 1:
-        print("⬇️ Please specify the file to be analyzed.")
+        rprint("⬇️ Please specify the file to be analyzed.")
         return
 
     file = sys.argv[1]
-    
+
     if current_user is None:
         auth_tokens = login()
-        print(f"Welcome {current_user['name']}!")
+        rprint(f"Welcome {current_user['name']}!")
     function_str = None
-    
+
     try:
-        print("Scanning " + file + " ...")
-        with open(file, "r") as fr:
-            function_str = fr.read()
+        rprint("Scanning " + file + " ...")
+        # platform dependent encoding used
+        #pylint:disable=unspecified-encoding
+        with open(file, "r", encoding=None) as file_reading:
+            function_str = file_reading.read()
+            tree = ast.parse(function_str)
             # is there more than one function in the file?
-            if function_str.count("def ") > 1:
+            function_names = get_all_function_names(tree)
+            if len(function_names) > 1:
                 if len(sys.argv) == 2:
-                    print("Since there is more than one function in the " + \
+                    rprint("Since there is more than one function in the " + \
                         "file, please specify which one you want to " + \
-                        "analyze, e.g., \n$ benchify sortlib.py isort")
+                        "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
                     return
+                
+                function_name = sys.argv[2]
+                function_str = get_function_source(
+                    tree, function_name, function_str)
+                if function_str:
+                    pass
                 else:
-                    tree = ast.parse(function_str)
-                    function_str = get_function_source(
-                        tree, sys.argv[2], function_str)
-                    if function_str:
-                        pass
-                    else:
-                        print(f"🔍 Function named {sys.argv[1]} not " + \
-                            f"found in {sys.argv[0]}.")
-                        return
-    except Exception as e:
-        print(f"Encountered exception trying to read {file}: {e}." + \
+                    rprint(f"🔍 Function named {sys.argv[2]} not " + \
+                        f"found in {file}.")
+                    return
+            elif len(function_names) == 1:
+                function_str = get_function_source(
+                    tree, function_names[0], function_str)
+            else:
+                rprint(f"There were no functions in {file}." + \
+                    " Cannot continue 😢.")
+                return
+    except OSError as reading_exception:
+        rprint(f"Encountered exception trying to read {file}: {reading_exception}." + \
             " Cannot continue 😢.")
         return
-    if function_str == None:
-        print(f"Error attempting to read {file}." + \
+    except SyntaxError as reading_exception:
+        rprint(f"Encountered exception trying to parse into ast {file}: {reading_exception}." + \
             " Cannot continue 😢.")
         return
-    
+    if function_str is None:
+        rprint(f"Error attempting to read {file}." + \
+            " Cannot continue 😢.")
+        return
+
     console = Console()
     url = "https://benchify.cloud/analyze"
     params = {'test_func': function_str}
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
-    print("Analyzing.  Should take about 1 minute ...")
-    response = requests.get(url, params=params, headers=headers)
+    expected_time = ("1 minute", 60)
+    rprint(f"Analyzing.  Should take about {expected_time[0]} ...")
+    try:
+        # timeout 5 times longer than the expected, to account for above average times
+        response = requests.get(url, params=params, headers=headers, timeout=expected_time[1]*5)
+    except requests.exceptions.Timeout:
+        rprint("Timed out")
     console.print(response.text)
 
 if __name__ == "__main__":
