@@ -17,7 +17,7 @@ from auth0.authentication.token_verifier \
 from rich import print as rprint
 from rich.console import Console
 
-from src.benchify.source_manipulation import \
+from benchify.source_manipulation import \
     get_function_source, get_all_function_names
 
 app = typer.Typer()
@@ -176,7 +176,7 @@ def analyze():
                     rprint(f"🔍 Function named {sys.argv[2]} not " + \
                         f"found in {file}.")
                     return
-            elif number_of_functions == 1:
+            elif len(function_names) == 1:
                 function_str = get_function_source(
                     tree, function_names[0], function_str)
             else:
