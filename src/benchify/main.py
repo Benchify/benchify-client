@@ -9,14 +9,16 @@ import webbrowser
 import ast
 import requests
 import jwt
+#pylint:disable=import-error
 import typer
-
+#pylint:disable=import-error
 from auth0.authentication.token_verifier \
     import TokenVerifier, AsymmetricSignatureVerifier
 
 from rich import print as rprint
 from rich.console import Console
 
+#pylint:disable=import-error
 from benchify.source_manipulation import \
     get_function_source, get_all_function_names
 
@@ -44,6 +46,7 @@ def validate_token(token_to_validate: str) -> Dict[str,Any]:
     decoded_payload = token_verifier.verify(token_to_validate)
     return decoded_payload
 
+#pylint:disable=too-few-public-methods
 class AuthTokens:
     """
     id and access tokens
@@ -134,6 +137,7 @@ def authenticate():
         login()
     rprint("✅ Logged in " + str(current_user))
 
+#pylint:disable = too-many-return-statements
 @app.command()
 def analyze():
     """
@@ -166,7 +170,7 @@ def analyze():
                         "file, please specify which one you want to " + \
                         "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
                     return
-                
+
                 function_name = sys.argv[2]
                 function_str = get_function_source(
                     tree, function_name, function_str)
