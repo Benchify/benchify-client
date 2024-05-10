@@ -3,9 +3,9 @@ manipulation of the python file
 """
 
 import ast
-from typing import Optional
+from typing import List, Optional
 
-def get_all_function_names(ast_tree: ast.AST) -> list[str]:
+def get_all_function_names(ast_tree: ast.AST) -> List[str]:
     """
     Extracts all function names from the provided AST tree, including named lambda functions.
     """
@@ -47,7 +47,11 @@ def get_function_source(ast_tree: ast.AST, function_name: str, code: str) -> Opt
     # if the function was not found
     return None
 
-def test_get_all_function_names():
+def test_get_all_function_names_happy():
+    """
+    names of both defined functions and named lambda functions retrieved
+    no funniness with nested functions or repeated names
+    """
     my_example = """
 banana = lambda x : "banana"
 
@@ -55,6 +59,54 @@ def hotdog(a, b):
     return a + b
 """
     assert get_all_function_names(ast.parse(my_example)) == ["banana", "hotdog"]
+
+def test_get_all_function_names():
+    """
+    names of both defined functions and named lambda functions retrieved
+    yes funniness with nested functions or repeated names
+    """
+    _banana_0 = "banana = lambda x : 'banana'"
+    banana_1 = """
+def banana(x, y):
+    return x*y
+"""
+    hotdog = """
+def hotdog(a, b):
+    def banana(x, y):
+        return x*y
+    return a + b
+"""
+
+    my_example = """
+banana = lambda x : 'banana'
+
+def hotdog(a, b):
+    def banana(x, y):
+        return x*y
+    return a + b
+"""
+    tree = ast.parse(my_example)
+    assert get_all_function_names(tree) == ["banana", "hotdog", "banana"]
+    hotdog_source = get_function_source(
+                    tree, "hotdog", my_example)
+    assert hotdog_source == hotdog.strip()
+    _hotdog_parse = ast.parse(hotdog_source)
+    banana_source = get_function_source(
+                    tree, "banana", my_example)
+    def insert_tabs(to_push_in: str) -> str:
+        """insert indentation on each line"""
+        return "".join(map(lambda s: f"    {s}",to_push_in.splitlines(True)))
+    assert banana_source == insert_tabs(banana_1.strip())
+    did_throw_correct = False
+    try:
+        _banana_parse = ast.parse(banana_source)
+    except SyntaxError as nested_parse_error:
+        error_msg = nested_parse_error.msg
+        #pylint:disable=no-member
+        if error_msg.startswith('unexpected indent'):
+            did_throw_correct = True
+    finally:
+        assert did_throw_correct
 
 def test_function_src():
     """
