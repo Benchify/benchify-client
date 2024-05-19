@@ -167,7 +167,6 @@ def login() -> AuthTokens:
 
         token_data = token_response.json()
         if token_response.status_code == 200:
-            print("token_data = ", token_data)
             try:
                 _ = validate_token(token_data['id_token'])
             except Exception as e:
