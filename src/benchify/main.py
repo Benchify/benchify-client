@@ -65,7 +65,7 @@ def load_token() -> Any:
             return pickle.load(f)
     return None
 
-def validate_token(token_to_validate: str) -> Dict[str,Any]:
+def validate_token(id_token: str) -> Dict[str,Any]:
     """
     Verify the token and its precedence
     """
@@ -76,8 +76,11 @@ def validate_token(token_to_validate: str) -> Dict[str,Any]:
         signature_verifier=sign_verifier,
         issuer=issuer,
         audience=AUTH0_CLIENT_ID)
-    decoded_payload = token_verifier.verify(token_to_validate)
-    return decoded_payload
+    try:
+        decoded_payload = token_verifier.verify(id_token)
+        return decoded_payload
+    except Exception as e:
+        raise e
 
 #pylint:disable=too-few-public-methods
 class AuthTokens:
@@ -116,9 +119,11 @@ def login() -> AuthTokens:
             )
         #pylint:disable=broad-exception-caught
         except Exception as e:
-            rprint('❌ Existing token is invalid, requesting a new one -- ', e)
+            rprint('❌ Existing token is invalid, requesting a new one.')
+            pass
     else:
         print("No cached token found, requesting a new one.")
+    
     login_timeout = 60
     try:
         device_code_response = requests.post(
@@ -162,13 +167,18 @@ def login() -> AuthTokens:
 
         token_data = token_response.json()
         if token_response.status_code == 200:
-            rprint('✅ Authenticated!')
-            _ = validate_token(token_data['id_token'])
+            print("token_data = ", token_data)
+            try:
+                _ = validate_token(token_data['id_token'])
+            except Exception as e:
+                rprint("Encountered exception validating token: ", e)
+                raise typer.Exit(code=1)
             #pylint:disable=global-statement
             current_user = jwt.decode(
                 token_data['id_token'],
                 algorithms=ALGORITHMS,
                 options={ "verify_signature": False })
+            rprint('✅ Authenticated!')
             authenticated = True
         elif token_data['error'] not in ('authorization_pending', 'slow_down'):
             rprint(token_data['error_description'])
