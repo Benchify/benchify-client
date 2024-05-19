@@ -1,24 +1,23 @@
 """
 exposes the API for benchify
 """
-
+import ast
+import os
+import pickle
 import sys
 import time
 from typing import Any, Dict
 import webbrowser
-import ast
-import requests
-import jwt
-#pylint:disable=import-error
-import typer
-#pylint:disable=import-error
+
+import appdirs
 from auth0.authentication.token_verifier \
     import TokenVerifier, AsymmetricSignatureVerifier
-
+import jwt
+import requests
 from rich import print as rprint
 from rich.console import Console
+import typer
 
-#pylint:disable=import-error
 from benchify.source_manipulation import \
     get_function_source, get_all_function_names
 
@@ -27,10 +26,44 @@ app = typer.Typer()
 AUTH0_DOMAIN    = 'benchify.us.auth0.com'
 AUTH0_CLIENT_ID = 'VessO49JLtBhlVXvwbCDkeXZX4mHNLFs'
 ALGORITHMS      = ['RS256']
+
 #pylint:disable=invalid-name
-id_token        = None
-#pylint:disable=invalid-name
+#pylint:disable=redefined-outer-name
 current_user    = None
+
+def get_token_file_path() -> str:
+    """
+    Determines where to save & load token.
+    """
+    app_dirs = appdirs.AppDirs("benchify", "benchify")
+    token_file = "token.pickle"
+    token_file_path = os.path.join(app_dirs.user_data_dir, token_file)
+    return token_file_path
+
+def save_token(token_data: Any) -> bool:
+    """
+    Saves the token_data to get_token_file_path().
+    """
+    try:
+        token_file_path = get_token_file_path()
+        os.makedirs(os.path.dirname(token_file_path), exist_ok=True)
+        with open(token_file_path, "wb") as f:
+            pickle.dump(token_data, f)
+    #pylint:disable=broad-exception-caught
+    except Exception as e:
+        print("Encountered exception while attempting to save token: ", e)
+        return False
+    return True
+
+def load_token() -> Any:
+    """
+    Loads the token_data from get_token_file_path().
+    """
+    token_file_path = get_token_file_path()
+    if os.path.exists(token_file_path):
+        with open(token_file_path, "rb") as f:
+            return pickle.load(f)
+    return None
 
 def validate_token(token_to_validate: str) -> Dict[str,Any]:
     """
@@ -61,14 +94,35 @@ def login() -> AuthTokens:
     """
     Runs the device authorization flow and stores the user object in memory
     """
+    #pylint:disable=global-statement
+    global current_user
     device_code_payload = {
         'client_id': AUTH0_CLIENT_ID,
         'scope': 'openid profile'
     }
+    token_data = load_token()
+    # If token exists, check if it's valid
+    if token_data:
+        try:
+            _ = validate_token(token_data['id_token'])
+            rprint('✅ Using existing valid token')
+            current_user = jwt.decode(
+                token_data['id_token'],
+                algorithms=ALGORITHMS,
+                options={ "verify_signature": False })
+            return AuthTokens(
+                my_id_token=token_data['id_token'],
+                access_token=token_data['access_token']
+            )
+        #pylint:disable=broad-exception-caught
+        except Exception as e:
+            rprint('❌ Existing token is invalid, requesting a new one -- ', e)
+    else:
+        print("No cached token found, requesting a new one.")
     login_timeout = 60
     try:
         device_code_response = requests.post(
-            f"https://{AUTH0_DOMAIN}/oauth/device/code", 
+            f"https://{AUTH0_DOMAIN}/oauth/device/code",
             data=device_code_payload, timeout=login_timeout)
     except requests.exceptions.Timeout:
         rprint('Error generating the device code')
@@ -83,7 +137,7 @@ def login() -> AuthTokens:
     device_code_data = device_code_response.json()
 
     rprint(
-        '1. On your computer or mobile device navigate to: ', 
+        '1. On your computer or mobile device navigate to: ',
         device_code_data['verification_uri_complete'])
     rprint('2. Enter the following code: ', device_code_data['user_code'])
 
@@ -99,30 +153,32 @@ def login() -> AuthTokens:
     }
 
     authenticated = False
+
     while not authenticated:
-        rprint('Authenticating ...')
         token_response = requests.post(
-            f"https://{AUTH0_DOMAIN}/oauth/token", data=token_payload,timeout=None)
+            f"https://{AUTH0_DOMAIN}/oauth/token",
+            data=token_payload,
+            timeout=None)
 
         token_data = token_response.json()
         if token_response.status_code == 200:
             rprint('✅ Authenticated!')
             _ = validate_token(token_data['id_token'])
             #pylint:disable=global-statement
-            global current_user
             current_user = jwt.decode(
                 token_data['id_token'],
                 algorithms=ALGORITHMS,
-                options={"verify_signature": False})
-
+                options={ "verify_signature": False })
             authenticated = True
-            # Save the current_user.
-
         elif token_data['error'] not in ('authorization_pending', 'slow_down'):
             rprint(token_data['error_description'])
             raise typer.Exit(code=1)
         else:
             time.sleep(device_code_data['interval'])
+
+    # Save the new token to file
+    save_token(token_data)
+
     return AuthTokens(
         my_id_token=token_data['id_token'],
         access_token=token_data['access_token']
@@ -150,9 +206,7 @@ def analyze():
 
     file = sys.argv[1]
 
-    if current_user is None:
-        auth_tokens = login()
-        rprint(f"Welcome {current_user['name']}!")
+    auth_tokens = login()
     function_str = None
 
     try:

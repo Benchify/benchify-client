@@ -9,6 +9,7 @@ authors = [
   { name="Max von Hippel", email="max@benchify.ai" },
   { name="Juan Castaño", email="juan@benchify.ai" },
   { name="Tyler Gabb", email="tylerjgabb@gmail.com" },
+  { name="Ammar Husain", email="ammar.s.husain@gmail.com" },
 ]
 description = "Formal code intelligence"
 readme = "README.md"
@@ -19,9 +20,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "rich",
-    "requests",
     "auth0-python",
+    "appdirs",
+    "jwt",
+    "requests",
+    "rich",
     "typer",
 ]
 
