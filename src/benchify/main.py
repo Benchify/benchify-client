@@ -12,6 +12,7 @@ import webbrowser
 import appdirs
 from auth0.authentication.token_verifier \
     import TokenVerifier, AsymmetricSignatureVerifier
+
 import jwt
 import requests
 from rich import print as rprint
@@ -118,12 +119,11 @@ def login() -> AuthTokens:
                 access_token=token_data['access_token']
             )
         #pylint:disable=broad-exception-caught
-        except Exception as e:
+        except Exception:
             rprint('❌ Existing token is invalid, requesting a new one.')
-            pass
     else:
         print("No cached token found, requesting a new one.")
-    
+
     login_timeout = 60
     try:
         device_code_response = requests.post(
