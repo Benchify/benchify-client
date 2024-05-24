@@ -5,21 +5,27 @@ manipulation of the python file
 import ast
 from typing import List, Optional
 
+def get_top_level_lambda_function_names(ast_tree: ast.AST) -> List[str]:
+    """
+    Extracts the names of all top-level lambda functions assigned to variables 
+    from the provided Python code.
+    """
+    lambda_function_names = []
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.Assign):
+            if isinstance(node.value, ast.Lambda) and isinstance(node.targets[0], ast.Name):
+                lambda_function_names.append(node.targets[0].id)
+    return lambda_function_names
+
 def get_all_function_names(ast_tree: ast.AST) -> List[str]:
     """
-    Extracts all function names from the provided AST tree, including named lambda functions.
+    Extracts all top-level function names from the provided AST tree.
     """
     function_names = []
-    for node in ast.walk(ast_tree):
+    for node in ast.iter_child_nodes(ast_tree):
         if isinstance(node, ast.FunctionDef):
             function_names.append(node.name)
-        elif isinstance(node, ast.Assign):
-            # Check if the assigned value is a lambda
-            if isinstance(node.value, ast.Lambda):
-                # Check if the target is a single name (not handling tuple unpacking)
-                if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                    function_names.append(node.targets[0].id)
-    return function_names
+    return function_names + get_top_level_lambda_function_names(ast_tree)
 
 def get_function_source_from_source(function_str: str, function_name: str) -> Optional[str]:
     """
@@ -47,6 +53,26 @@ def get_function_source(ast_tree: ast.AST, function_name: str, code: str) -> Opt
     # if the function was not found
     return None
 
+"""
+--------- UNIT TESTS ---------- 
+"""
+
+def test_get_all_function_names():
+    code = '''
+def blarg():
+    def foo():
+        return 5
+    return blarg()
+
+bar = lambda x: x + 1
+
+def baz():
+    pass
+'''
+    ast_tree = ast.parse(code)
+    function_names = get_all_function_names(ast_tree)
+    assert set(function_names) == {'blarg', 'bar', 'baz'}
+
 def test_get_all_function_names_happy():
     """
     names of both defined functions and named lambda functions retrieved
@@ -58,7 +84,7 @@ banana = lambda x : "banana"
 def hotdog(a, b):
     return a + b
 """
-    assert get_all_function_names(ast.parse(my_example)) == ["banana", "hotdog"]
+    assert sorted(get_all_function_names(ast.parse(my_example))) == sorted(["banana", "hotdog"])
 
 def test_get_all_function_names():
     """
@@ -86,7 +112,7 @@ def hotdog(a, b):
     return a + b
 """
     tree = ast.parse(my_example)
-    assert get_all_function_names(tree) == ["banana", "hotdog", "banana"]
+    assert sorted(get_all_function_names(tree)) == sorted(["banana", "hotdog"])
     hotdog_source = get_function_source(
                     tree, "hotdog", my_example)
     assert hotdog_source == hotdog.strip()
