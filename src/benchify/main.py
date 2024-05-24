@@ -205,15 +205,35 @@ def authenticate():
 #pylint:disable = too-many-return-statements
 @app.command()
 def analyze():
+
     """
     send the request to analyze the function specified by the command line arguments
-    and show the results
-    """
-    if len(sys.argv) == 1:
-        rprint("⬇️ Please specify the file to be analyzed.")
-        return
+    and show the results.  Examples:
 
+    benchify scripy.py --name foo --patch
+
+    benchify single_func.py
+
+    benchify single_func.py --patch
+
+    benchify two_funcs.py --name second_func
+
+    Right now I have a janky, homebrewed CLI args system, but we should do something
+    more ideomatic (not to mention automatic) in the future.
+    """
     file = sys.argv[1]
+    patch = False 
+
+    if len(sys.argv) > 2 and sys.argv[2].strip() in ["-p", "--patch"]:
+        patch = True 
+    if len(sys.argv) > 3 and sys.argv[3].strip() in ["-p", "--patch"]:
+        patch = True
+
+    if len(sys.argv) > 2 and sys.argv[2][0] != "-":
+        name = sys.argv[2]
+    elif len(sys.argv) > 3 and sys.argv[3][0] != "-":
+        name = sys.argv[3]
+
 
     auth_tokens = login()
     function_str = None
@@ -228,19 +248,18 @@ def analyze():
             # is there more than one function in the file?
             function_names = get_all_function_names(tree)
             if len(function_names) > 1:
-                if len(sys.argv) == 2:
+                if name == None:
                     rprint("Since there is more than one function in the " + \
                         "file, please specify which one you want to " + \
                         "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
                     return
 
-                function_name = sys.argv[2]
                 function_str = get_function_source(
-                    tree, function_name, function_str)
+                    tree, name, function_str)
                 if function_str:
                     pass
                 else:
-                    rprint(f"🔍 Function named {sys.argv[2]} not " + \
+                    rprint(f"🔍 Function named {name} not " + \
                         f"found in {file}.")
                     return
             elif len(function_names) == 1:
@@ -265,7 +284,7 @@ def analyze():
 
     console = Console()
     url = "https://benchify.cloud/analyze"
-    params = {'test_func': function_str}
+    params = {'test_func': function_str, "patch_requested": patch}
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)
     rprint(f"Analyzing.  Should take about {expected_time[0]} ...")
