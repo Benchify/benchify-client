@@ -223,6 +223,7 @@ def analyze():
     """
     file = sys.argv[1]
     patch = False 
+    name = None
 
     if len(sys.argv) > 2 and sys.argv[2].strip() in ["-p", "--patch"]:
         patch = True 
