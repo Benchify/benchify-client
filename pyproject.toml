@@ -26,7 +26,10 @@ dependencies = [
     "requests",
     "rich",
     "typer",
-    "urllib3==1.26.6"
+    "urllib3==1.26.6",
+    "importlib",
+    "stdlib_list",
+    "pytest",
 ]
 
 [project.scripts]

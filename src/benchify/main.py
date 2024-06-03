@@ -1,7 +1,6 @@
 """
 exposes the API for benchify
 """
-import ast
 import os
 import pickle
 import sys
@@ -19,8 +18,10 @@ from rich import print as rprint
 from rich.console import Console
 import typer
 
-from benchify.source_manipulation import \
-    get_function_source, get_all_function_names
+from .source_manipulation import \
+    get_function_source, \
+    get_all_function_names, \
+    resolve_pip_and_builtin_imports_recursive
 
 app = typer.Typer()
 
@@ -244,10 +245,10 @@ def analyze():
         # platform dependent encoding used
         #pylint:disable=unspecified-encoding
         with open(file, "r", encoding=None) as file_reading:
-            function_str = file_reading.read()
-            tree = ast.parse(function_str)
+            # Perhaps not the best name here, since it might have multiple functions?
+            function_str = file_reading.read() 
             # is there more than one function in the file?
-            function_names = get_all_function_names(tree)
+            function_names = get_all_function_names(function_str)
             if len(function_names) > 1:
                 if name == None:
                     rprint("Since there is more than one function in the " + \
@@ -255,8 +256,7 @@ def analyze():
                         "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
                     return
 
-                function_str = get_function_source(
-                    tree, name, function_str)
+                function_str = get_function_source(function_str, name)
                 if function_str:
                     pass
                 else:
@@ -264,8 +264,7 @@ def analyze():
                         f"found in {file}.")
                     return
             elif len(function_names) == 1:
-                function_str = get_function_source(
-                    tree, function_names[0], function_str)
+                function_str = get_function_source(function_str, function_names[0])
             else:
                 rprint(f"There were no functions in {file}." + \
                     " Cannot continue 😢.")
@@ -283,9 +282,20 @@ def analyze():
             " Cannot continue 😢.")
         return
 
+    pip_imports, builtin_imports = [], []
+    try:
+        pip_imports, builtin_imports = resolve_pip_and_builtin_imports_recursive(file)
+    except Exception as e:
+        rprint(f"Error trying to resolve pip imports.")
+
     console = Console()
     url = "https://benchify.cloud/analyze"
-    params = {'test_func': function_str, "patch_requested": patch}
+    params = {
+        "test_func": function_str, 
+        "patch_requested": patch, 
+        "pip_imports": pip_imports,
+        "builtin_imports": builtin_imports,
+    }
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)
     rprint(f"Analyzing.  Should take about {expected_time[0]} ...")
