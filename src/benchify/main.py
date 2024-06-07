@@ -18,7 +18,7 @@ from rich import print as rprint
 from rich.console import Console
 import typer
 
-from .source_manipulation import \
+from source_manipulation import \
     get_function_source, \
     get_all_function_names, \
     resolve_pip_and_builtin_imports_recursive

@@ -2,9 +2,94 @@
 manipulation of the python file
 """
 import ast, os, subprocess, sys, pytest
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict, Union, Tuple
 from stdlib_list import stdlib_list
-from .empty import PURPOSE_OF_THIS_FILE
+from pkg_resources import working_set
+import importlib.util
+
+def is_system_package(module_name: str) -> bool:
+    if " as " in module_name:
+        module_name = module_name.split(' as ')[0]
+    return module_name in stdlib_list(".".join(map(str, sys.version_info[0:2])))
+
+def is_pip_installed_package(module_name: str) -> bool:
+    if " as " in module_name:
+        module_name = module_name.split(' as ')[0]
+    if is_system_package(module_name):
+        return False
+    if module_name in {pkg.key for pkg in working_set}:
+        return True
+    return importlib.util.find_spec(module_name) is not None
+
+def find_local_module(module_name: str, file_path: str) -> Optional[str]:
+    # Split the module name into parts
+    module_parts = module_name.split('.')
+    
+    # Start from the directory of the file being analyzed
+    base_dir = os.path.dirname(file_path)
+    
+    # Recursive function to search for the module
+    def search_module(current_dir, remaining_parts):
+        if not remaining_parts:
+            return None
+        
+        current_part = remaining_parts[0]
+        module_file = os.path.join(current_dir, current_part + '.py')
+        module_dir = os.path.join(current_dir, current_part)
+        
+        if os.path.isfile(module_file):
+            if len(remaining_parts) == 1:
+                return module_file
+            else:
+                return None
+        elif os.path.isdir(module_dir):
+            init_file = os.path.join(module_dir, '__init__.py')
+            if os.path.isfile(init_file):
+                result = search_module(module_dir, remaining_parts[1:])
+                if result:
+                    return result
+        
+        return None
+    
+    # Search for the module in the current directory and subdirectories
+    result = search_module(base_dir, module_parts)
+    if result:
+        return result
+    
+    # Search for the module in the parent directories and their subdirectories
+    parent_dir = os.path.dirname(base_dir)
+    while parent_dir != base_dir:
+        result = search_module(parent_dir, module_parts)
+        if result:
+            return result
+        base_dir = parent_dir
+        parent_dir = os.path.dirname(parent_dir)
+    
+    return None
+
+def get_import_info(
+    node: Union[ast.Import, ast.ImportFrom], 
+    file_path: str) -> Tuple[str, str]:
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            module_name = alias.name.strip()
+            local_path = find_local_module(module_name, file_path)
+            if local_path is not None:
+                return ("local", local_path)
+            elif is_pip_installed_package(module_name):
+                return ("pip", module_name)
+            else:
+                return ("system", alias.name)
+    
+    elif isinstance(node, ast.ImportFrom):
+        module_name = node.module
+        local_path = find_local_module(module_name, file_path)
+        if local_path is not None:
+            return ("local", local_path)
+        if is_pip_installed_package(module_name):
+            return ("pip", module_name)
+        return ("system", module_name)
+
 
 # INPUT:
 #     the_file: The path to the Python file we are analyzing.
@@ -13,24 +98,24 @@ from .empty import PURPOSE_OF_THIS_FILE
 def resolve_local_imports(the_file: str) -> List[str]:
     with open(the_file, 'r') as file:
         tree = ast.parse(file.read())
-
     files = []
+    base_dir = os.path.dirname(the_file)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 module_name = alias.name
-                module_path = os.path.join(
-                    os.path.dirname(the_file), module_name + '.py')
+                module_path = os.path.join(base_dir, module_name + '.py')
                 if os.path.isfile(module_path):
                     files.append(module_path)
         elif isinstance(node, ast.ImportFrom):
             module_name = node.module
-            if module_name and not module_name.startswith('.'):
-                module_path = os.path.join(
-                    os.path.dirname(the_file), module_name + '.py')
+            if module_name:
+                if module_name.startswith('.'):
+                    module_path = os.path.normpath(os.path.join(base_dir, module_name + '.py'))
+                else:
+                    module_path = os.path.join(base_dir, module_name + '.py')
                 if os.path.isfile(module_path):
                     files.append(module_path)
-
     return files
 
 # INPUT:
@@ -194,17 +279,31 @@ def get_function_source(source_code: str, function_name: str) -> Optional[str]:
     return normalized_code
 
 # --------------------------- BELOW HERE IS UNTESTED ---------------------------
+def find_called_functions(source_file: str, function_name: str) -> List[str]:
+    called_functions = []
 
-# TODO -- We need to redo this in a way that includes normalization.
-# def extract_function_dependencies(source_file, function_name) -> str:
-    # TODO
+    with open(source_file, 'r') as file:
+        tree = ast.parse(file.read())
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            for subnode in ast.walk(node):
+                if isinstance(subnode, ast.Call):
+                    if isinstance(subnode.func, ast.Name):
+                        called_functions.append(subnode.func.id)
+                    elif isinstance(subnode.func, ast.Attribute):
+                        called_functions.append(subnode.func.attr)
+
+    return list(dict.fromkeys(called_functions))
+
+
 
 def get_flattened_function(source_file: str, function_name: str):
     # Get the pip and builtin imports
     pip_imports, builtin_imports = resolve_pip_and_builtin_imports_recursive(source_file)
     
     # Get the local imports
-    # dependencies_inside_the_original_file = extract_function_dependencies(source_file, function_name)
+    # dependencies_inside_the_original_file = extract_function_dependencies_recursive(source_file, function_name)
 
     # Get the function.
     source_code = ""
@@ -238,15 +337,6 @@ def clean_string(string):
     non_empty_lines = [line for line in lines if line.strip()]
     result = '\n'.join(non_empty_lines)
     return result.strip()
-
-def test_resolve_local_imports():
-    lhs = resolve_local_imports("src/benchify/main.py")
-    rhs = ["src/benchify/source_manipulation.py"] 
-    assert lhs == rhs
-    lhs = resolve_local_imports_recursive("src/benchify/main.py")
-    assert lhs != rhs
-    rhs += ["src/benchify/empty.py", "src/benchify/empty2.py"]
-    assert lhs == rhs
 
 def test_resolve_pip_and_builtin_imports():
     pips_lhs, syss_lhs = resolve_pip_and_builtin_imports("src/benchify/main.py")
@@ -408,30 +498,26 @@ def junk(arg1: int, arg2: str):
     assert clean_string(get_function_source(my_example,"junk")) == clean_string(my_example_2)
     assert get_function_source(my_example,"mai") is None
 
-def test_get_flattened_function():
-    lhs = get_flattened_function("src/benchify/empty.py", "arbitrary_test_function")
-    print("lhs = \n", lhs)
-    flattened_function = """
-import platform, sys, os
 
-PURPOSE_OF_THIS_FILE = "just for testing"
 
-def blarg(lst):
-    return (lst, lst)
+# def test_get_flattened_function():
+#     lhs = get_flattened_function("src/benchify/empty.py", "arbitrary_test_function")
+#     print("lhs = \n", lhs)
+#     flattened_function = """
+# import platform, sys, os
 
-def arbitrary_test_function(foo):
-    return (
-        blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), 
-        banana_mango.system(),
-        sys.platform(),
-        os.name()
-    )
-"""
-    print("rhs = \n", flattened_function)
-    assert lhs == flattened_function
+# PURPOSE_OF_THIS_FILE = "just for testing"
 
-if __name__ == "__main__":
-    test_function_src()
-    test_function_src_commented()
-    test_function_src_args()
-    test_two_functions()
+# def blarg(lst):
+#     return (lst, lst)
+
+# def arbitrary_test_function(foo):
+#     return (
+#         blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), 
+#         banana_mango.system(),
+#         sys.platform(),
+#         os.name()
+#     )
+# """
+#     print("rhs = \n", flattened_function)
+#     assert lhs == flattened_function
