@@ -1,4 +1,4 @@
-from src.benchify.source_manipulation import is_system_package, is_pip_installed_package, get_import_info
+from src.benchify.source_manipulation import is_system_package, is_pip_installed_package, get_import_info, get_import_info_recursive
 import ast
 
 def test_is_system_package():
@@ -59,7 +59,7 @@ def test_is_pip_installed_package():
 
     assert exceptions == 2
 
-def test_import_pip_installed_package():
+def test_import_info_functions():
     file_path1 = 'tests/fixtures/demo1.py'
     file_path2 = 'tests/fixtures/demo2.py'
 
@@ -75,7 +75,15 @@ def test_import_pip_installed_package():
         level=1)
     assert get_import_info(node, file_path1) == ('local', file_path2)
 
-    
+    lhs = { 
+        ('local', 'tests/fixtures/demo2.py') : [{
+            ('local', 'tests/fixtures/demo3.py') : [{
+                ('system', 'os') : []
+            }]
+        }] 
+    }
+    rhs = get_import_info_recursive(node, file_path1)
+    assert lhs == rhs
 
 # def test_get_all_function_names():
 #     lhs = find_called_functions("src/benchify/main.py", "validate_token")

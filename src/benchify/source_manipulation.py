@@ -2,17 +2,35 @@
 manipulation of the python file
 """
 import ast, os, subprocess, sys, pytest
-from typing import List, Optional, Set, Dict, Union, Tuple
+from typing import List, Optional, Set, Dict, Union, Tuple, Any
 from stdlib_list import stdlib_list
 from pkg_resources import working_set
 import importlib.util
 
 def is_system_package(module_name: str) -> bool:
+    """
+    Determines whether a given module name is part of the Python standard lib.
+
+    Args:
+        module_name (str): The name of the module to check.
+
+    Returns:
+        bool: True iff the module is part of the Python standard library.
+    """
     if " as " in module_name:
         module_name = module_name.split(' as ')[0]
     return module_name in stdlib_list(".".join(map(str, sys.version_info[0:2])))
 
 def is_pip_installed_package(module_name: str) -> bool:
+    """
+    Determines whether a given module name is pip-installable.
+
+    Args:
+        module_name (str): The name of the module to check.
+
+    Returns:
+        bool: True iff the module is pip-installable.
+    """
     if " as " in module_name:
         module_name = module_name.split(' as ')[0]
     if is_system_package(module_name):
@@ -22,6 +40,16 @@ def is_pip_installed_package(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
 
 def find_local_module(module_name: str, file_path: str) -> Optional[str]:
+    """
+    Finds the path to a locally defined module.
+
+    Args:
+        module_name (str): The name of the module to check.
+        file_path (str): The path relative to which the module was imported.
+
+    Returns:
+        str: The path where the module is defined, or None if it isn't.
+    """
     # Split the module name into parts
     module_parts = module_name.split('.')
     
@@ -70,6 +98,18 @@ def find_local_module(module_name: str, file_path: str) -> Optional[str]:
 def get_import_info(
     node: Union[ast.Import, ast.ImportFrom], 
     file_path: str) -> Tuple[str, str]:
+    """
+    Finds the import info for the given import.
+
+    Args:
+        node: Either an Import or an ImportFrom in ast.
+        file_path (str): The path relative to which the module was imported.
+
+    Returns:
+        (str0, str1) where str0 is the type of import (local, pip, or system)
+        and str2 is the import description (module name or path to module).
+    """
+
     if isinstance(node, ast.Import):
         for alias in node.names:
             module_name = alias.name.strip()
@@ -89,6 +129,58 @@ def get_import_info(
         if is_pip_installed_package(module_name):
             return ("pip", module_name)
         return ("system", module_name)
+
+def get_import_info_recursive(
+    node: Union[ast.Import, ast.ImportFrom],
+    file_path: str) -> Dict[Tuple[str, str], Any]:
+    """
+    Recursively retrieves import information for a given import node and its dependencies.
+
+    Args:
+        node (Union[ast.Import, ast.ImportFrom]): The import node to analyze.
+        file_path (str): The path of the file containing the import node.
+
+    Returns:
+        Dict[Tuple[str, str], Any]: A dictionary mapping import categories and 
+        names to their respective import information. The keys are tuples of 
+        (category, name), where category is one of "local", "pip", or "system", 
+        and name is the name of the imported module or package, or the file path
+        for the module if it's locally defined. The values are dictionaries of 
+        the same kind.
+    """
+    import_info = {}
+
+    # Categorize the node using get_import_info
+    category, module_file_path_or_name = get_import_info(node, file_path)
+    cur_key = (category, module_file_path_or_name)
+    import_info[cur_key] = []
+
+    if category == "system" or category == "pip":
+        return import_info
+
+    assert category == "local"
+    module_ast = None
+    with open(module_file_path_or_name, "r") as fr:
+        module_ast = ast.parse(fr.read())
+
+    for sub in ast.walk(module_ast):
+        if isinstance(sub, ast.Import) or isinstance(sub, ast.ImportFrom):
+            print("Recursing on sub-import ...")
+            sub_import_info = get_import_info_recursive(
+                sub, module_file_path_or_name)
+
+            import_info[cur_key].append(sub_import_info)
+
+    return import_info
+
+# I-AM-HERE
+
+
+
+
+
+
+
 
 
 # INPUT:
