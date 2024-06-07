@@ -1,4 +1,12 @@
-from src.benchify.source_manipulation import is_system_package, is_pip_installed_package, get_import_info, get_import_info_recursive
+from src.benchify.source_manipulation import \
+    is_system_package, \
+    is_pip_installed_package, \
+    get_import_info, \
+    get_import_info_recursive, \
+    build_full_import_map, \
+    get_all_function_names, \
+    get_top_level_lambda_function_names
+
 import ast
 
 def test_is_system_package():
@@ -84,6 +92,81 @@ def test_import_info_functions():
     }
     rhs = get_import_info_recursive(node, file_path1)
     assert lhs == rhs
+
+    lhs[('system', 'platform')] = []
+    lhs[('system', 'sys')] = []
+    lhs[('system', 'os')] = []
+    lhs[('pip', 'numpy')] = []
+
+    rhs = build_full_import_map(file_path1)
+    assert lhs == rhs
+
+def test_get_top_level_lambda_function_names():
+    code = '''
+banana = lambda x : x + 1
+hotdog = lambda x : lambda y : y + x
+def shoe(y):
+    dilbert = lambda i : i * banana(i)
+    return dilbert(y)
+'''
+    lhs = get_top_level_lambda_function_names(ast.parse(code))
+    assert lhs == ['banana', 'hotdog']
+
+def test_get_all_function_names():
+    code = '''
+def blarg():
+    def foo():
+        return 5
+    return blarg()
+
+bar = lambda x: x + 1
+
+def baz():
+    pass
+'''
+    function_names = get_all_function_names(code)
+    print("function names: ", set(function_names))
+    assert set(function_names) == {'blarg', 'bar', 'baz'}
+
+def test_get_all_function_names_happy():
+    """
+    names of both defined functions and named lambda functions retrieved
+    no funniness with nested functions or repeated names
+    """
+    my_example = """
+banana = lambda x : "banana"
+
+def hotdog(a, b):
+    return a + b
+"""
+    assert sorted(get_all_function_names(my_example)) == sorted(["banana", "hotdog"])
+
+def test_get_all_function_names():
+    """
+    names of both defined functions and named lambda functions retrieved
+    yes funniness with nested functions or repeated names
+    """
+    _banana_0 = "banana = lambda x : 'banana'"
+    banana_1 = """
+def banana(x, y):
+    return x * y
+"""
+    hotdog = """
+def hotdog(a, b):
+    def banana(x, y):
+        return x * y
+    return a + b
+"""
+
+    my_example = """
+banana = lambda x : 'banana'
+
+def hotdog(a, b):
+    def banana(x, y):
+        return x*y
+    return a + b
+"""
+    assert sorted(get_all_function_names(my_example)) == sorted(["banana", "hotdog"])
 
 # def test_get_all_function_names():
 #     lhs = find_called_functions("src/benchify/main.py", "validate_token")
