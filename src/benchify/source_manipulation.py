@@ -241,4 +241,70 @@ def get_all_function_names(code_str: str) -> List[str]:
             function_names.append(node.name)
     return function_names + get_top_level_lambda_function_names(ast_tree)
 
+def normalize_imported_modules_in_code_and_remove_imports(code_str: str) -> str:
+    """
+    Normalizes a python code string so that it does not use any aliases in its
+    imports.  E.g., would turn "numpy as np" into "np".
+
+    Args:
+        code_str: The string that needs to be normalized.
+
+    Returns:
+        str: The normalized version of the code string.
+    """
+    # Parse the code string into an AST
+    tree = ast.parse(code_str)
+    
+    # Create a transformer to modify the AST
+    class ImportTransformer(ast.NodeTransformer):
+        def __init__(self):
+            self.alias_map = {}
+        
+        def visit_Import(self, node):
+            # Remove import statements without aliases
+            for alias in node.names:
+                if alias.asname:
+                    self.alias_map[alias.asname] = alias.name
+            return None
+        
+        def visit_ImportFrom(self, node):
+            # Normalize "from A import B" to "import A.B" and handle aliases
+            for alias in node.names:
+                module_path = f"{node.module}.{alias.name}"
+                if alias.asname:
+                    self.alias_map[alias.asname] = module_path
+                else:
+                    self.alias_map[alias.name] = module_path
+            return None
+        
+        def visit_Name(self, node):
+            # Replace the usage of aliases with the original module path
+            if node.id in self.alias_map:
+                module_path = self.alias_map[node.id]
+                attrs = module_path.split(".")
+                new_node = ast.Name(id=attrs[0], ctx=node.ctx)
+                for attr in attrs[1:]:
+                    new_node = ast.Attribute(value=new_node, attr=attr, ctx=node.ctx)
+                return new_node
+            return node
+        
+        def visit_Attribute(self, node):
+            # Replace the usage of aliases in attribute access
+            if isinstance(node.value, ast.Name) and node.value.id in self.alias_map:
+                module_path = self.alias_map[node.value.id]
+                attrs = module_path.split(".")
+                new_node = ast.Name(id=attrs[0], ctx=node.value.ctx)
+                for attr in attrs[1:] + [node.attr]:
+                    new_node = ast.Attribute(value=new_node, attr=attr, ctx=node.value.ctx)
+                return new_node
+            return node
+    
+    # Modify the AST using the transformer
+    transformer = ImportTransformer()
+    modified_tree = transformer.visit(tree)
+    
+    # Convert the modified AST back to code string
+    normalized_code = ast.unparse(modified_tree)
+    
+    return normalized_code
 

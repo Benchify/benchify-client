@@ -1,7 +1,3 @@
-"""
-Empty file just for testing resolve_local_imports_recursive
-(Well, it is not empty, but it's empty of stuff that actually matters ...)
-"""
 PURPOSE_OF_THIS_FILE = "just for testing"
 
 from .demo2 import blarg as super_duper_important

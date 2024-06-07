@@ -5,7 +5,8 @@ from src.benchify.source_manipulation import \
     get_import_info_recursive, \
     build_full_import_map, \
     get_all_function_names, \
-    get_top_level_lambda_function_names
+    get_top_level_lambda_function_names, \
+    normalize_imported_modules_in_code_and_remove_imports
 
 import ast
 
@@ -168,24 +169,16 @@ def hotdog(a, b):
 """
     assert sorted(get_all_function_names(my_example)) == sorted(["banana", "hotdog"])
 
-# def test_get_all_function_names():
-#     lhs = find_called_functions("src/benchify/main.py", "validate_token")
-#     rhs = ["AsymmetricSignatureVerifier", "TokenVerifier", "verify"]
-#     assert lhs == rhs
+def test_normalize_imports_in_code():
+    normalized_code = None
+    with open("tests/fixtures/demo1.py", "r") as fr:
+        normalized_code = normalize_imported_modules_in_code_and_remove_imports(
+            fr.read())
+    assert normalized_code.strip() == """
+PURPOSE_OF_THIS_FILE = 'just for testing'
+a = 44
 
-#     lhs = find_called_functions(
-#         "src/benchify/source_manipulation.py", "resolve_local_imports")
-#     rhs = ["walk", "open", "parse", "isinstance", "read", "join", "isfile", 
-#         "dirname", "append", "startswith"]
-#     assert lhs == rhs
-
-# def test_resolve_local_imports():
-#     lhs = resolve_local_imports("src/benchify/main.py")
-#     rhs = ["src/benchify/source_manipulation.py"] 
-#     assert lhs == rhs
-#     lhs = resolve_local_imports_recursive("tests/fixtures/demo1.py")
-#     assert lhs != rhs
-#     rhs = ["tests/fixtures/demo2.py"]
-#     assert resolve_local_imports("tests/fixtures/demo1.py") == rhs
-#     rhs += ["tests/fixtures/demo3.py"]
-#     assert lhs == rhs
+def arbitrary_test_function(foo):
+    print(a)
+    return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
+""".strip()
