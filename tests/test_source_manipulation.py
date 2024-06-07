@@ -63,7 +63,6 @@ def test_import_pip_installed_package():
     file_path1 = 'tests/fixtures/demo1.py'
     file_path2 = 'tests/fixtures/demo2.py'
 
-    # numpy is pip-installable 
     node = ast.Import(names=[ast.alias(name='numpy', asname=None)])
     assert get_import_info(node, file_path1) == ('pip', 'numpy')
     
