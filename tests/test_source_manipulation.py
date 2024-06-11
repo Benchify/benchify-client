@@ -39,6 +39,8 @@ def test_is_system_package():
         exceptions = 1
     assert exceptions == 1
 
+    assert is_system_package("sys.platform")
+
 def test_is_pip_installed_package():
     assert is_pip_installed_package("auth0-python")
     assert is_pip_installed_package("appdirs")
@@ -207,13 +209,33 @@ def test_find_local_module():
     rhs = "tests/fixtures/demo2.py"
     assert lhs == rhs
 
-# def test_normalize_imported_modules_in_code():
-#     normalized_code = normalize_imported_modules_in_code("tests/fixtures/demo1.py")
-#     assert normalized_code.strip() == """
-# PURPOSE_OF_THIS_FILE = 'just for testing'
-# a = 44
+def test_normalize_imported_modules_in_code():
+    normalized_code = normalize_imported_modules_in_code("tests/fixtures/demo1.py")
+    assert normalized_code.strip() == """
+PURPOSE_OF_THIS_FILE = 'just for testing'
 
-# def arbitrary_test_function(foo):
-#     print(a)
-#     return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
-# """.strip()
+class demo2:
+    \"\"\"
+    Another empty file just for testing resolve_local_imports_recursive
+    (Well, it is not empty, but it's empty of stuff that actually matters ...)
+    \"\"\"
+
+    class demo3:
+        import os
+        banana = 99
+        orange = lambda x: x + 2
+    demo3 = demo3()
+
+    def blarg(lst):
+        return ((lst, lst), demo3.orange(demo3.banana))
+demo2 = demo2()
+import platform
+import sys.platform
+import os
+import numpy
+a = 44
+
+def arbitrary_test_function(foo):
+    print(a)
+    return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
+""".strip()
