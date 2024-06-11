@@ -346,6 +346,8 @@ def normalize_imported_modules_in_code(file_path: str) -> str:
                         for alias in node.names:
                             if alias.asname:
                                 self.alias_map[alias.asname] = f"{class_name}.{alias.name}"
+                            else:
+                                self.alias_map[alias.name] = f"{class_name}.{alias.name}"
                         
                         # Return the wrapped AST
                         return wrapped_ast.body
