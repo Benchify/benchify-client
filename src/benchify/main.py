@@ -291,11 +291,15 @@ def analyze():
 
     console = Console()
     url = "https://benchify.cloud/analyze"
+    normalized_code = str(normalize_imported_modules_in_code(file))
+
+    print("NORMALIZED CODE:\n\n" + normalized_code)
+
     params = {
-        "test_func": function_str, 
-        "patch_requested": patch, 
-        "pip_imports": pip_imports,
-        "test_code": normalize_imported_modules_in_code(file)
+        "test_func": function_str, # This is the function string as it was originally written
+        "patch_requested": patch,  # This indicates whether the user wants a patch
+        "pip_imports": pip_imports, # This is the list of pip imports (recursively) needed for testing
+        "test_code": normalized_code # This is the flattened code we plan to test
     }
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)
