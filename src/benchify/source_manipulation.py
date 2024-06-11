@@ -7,6 +7,56 @@ from stdlib_list import stdlib_list
 from pkg_resources import working_set
 import importlib.util
 
+def get_function_source(ast_tree: ast.AST, function_name: str, code: str) -> Optional[str]:
+    """
+    Pull out just this single function's source code.
+
+    Args:
+        ast_tree (ast.AST): The ast for the entire code string being analyzed.
+        function_name (str): The name of the function we want to extract.
+        code (str): The actual code string which, when parsed with ast, yields ast_tree.
+
+    Returns:
+        str: The string of the function being analyzed.
+    """
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            start_line = node.lineno
+            end_line = node.end_lineno
+            function_source = '\n'.join(
+                code.splitlines()[start_line - 1:end_line])
+            return function_source
+        elif isinstance(node, ast.Lambda):
+            # Handle lambdas by checking if the code matches the function_name
+            if function_name in code[node.col_offset:]:
+                # Get the start and end line numbers of the lambda
+                start_line = node.lineno
+                end_line = node.end_lineno
+                function_source = '\n'.join(
+                    code.splitlines()[start_line - 1:end_line])
+                return function_source
+    # if the function was not found
+    return None
+
+def get_function_source_from_source(function_str: str, function_name: str) -> Optional[str]:
+    """
+    Pull out just this single function's source code.
+
+    Args:
+        function_str (str): The string in which we expect to find the function.
+        function_name (str): The name of the function we are looking for.
+
+    Returns:
+        str: The code for the function with name function_name.
+    """
+    try:
+        tree = ast.parse(function_str)
+    except SyntaxError as _syn_error:
+        print(_syn_error)
+        return None
+    return get_function_source(
+        tree, function_name, function_str)
+
 def is_system_package(module_name: str) -> bool:
     """
     Determines whether a given module name is part of the Python standard lib.
@@ -170,7 +220,6 @@ def get_import_info_recursive(
 
     for sub in ast.walk(module_ast):
         if isinstance(sub, ast.Import) or isinstance(sub, ast.ImportFrom):
-            print("Recursing on sub-import ...")
             sub_import_info = get_import_info_recursive(
                 sub, module_file_path_or_name)
 
@@ -208,6 +257,52 @@ def build_full_import_map(the_file: str) -> Dict[Tuple[str, str], Any]:
             import_info |= sub_import_info
 
     return import_info
+
+def extract_pip_imports(import_map: Dict[Tuple[str, str], Any]) -> List[str]:
+    """
+    Given the import_map computed by build_full_import_map, returns the list of
+    just the pip imports, in (flattened) order.
+
+    Args:
+        import_map (Dict[Tuple[str, str], Any]): the import_map computed by
+            build_full_import_map.
+
+    Returns:
+        List[str]: The list of packages that need to be pip-installed.
+    """
+    pip_imports = []
+    for tuple_key in import_map:
+        (import_type, import_name_or_path) = tuple_key
+        sub_imports = import_map[(import_type, import_name_or_path)]
+        print("tuple_key = ", tuple_key, "import_map = ", import_map, "sub_imports = ", sub_imports)
+        if len(sub_imports) > 0:
+            assert import_type == "local"
+            for sub_import in sub_imports:
+                pip_imports.extend(extract_pip_imports(sub_import))
+        
+        if import_type == "pip":
+            pip_imports.append(import_name_or_path)
+        
+    return pip_imports
+
+def get_pip_imports_recursive(the_file: str) -> List[str]:
+    """
+    Runs extract_pip_imports on the full import_map built from the_file.
+
+    Args:
+        the_file (str): Path to some file to be analyzed.
+
+    Returns:
+        List[str]: The list of packages that need to be pip-installed, without
+            any repetitions.
+    """
+    import_map = build_full_import_map(the_file)
+    import_list = extract_pip_imports(import_map)
+    new_import_list = []
+    for imp in import_list:
+        if not imp in new_import_list:
+            new_import_list.append(imp)
+    return new_import_list
 
 def get_top_level_lambda_function_names(ast_tree: ast.AST) -> List[str]:
     """
@@ -288,7 +383,6 @@ def normalize_imported_modules_in_code(file_path: str) -> str:
         def visit_Import(self, node: ast.Import) -> ast.stmt:
             new_names = []
             for alias in node.names:
-                print("Attempting on (", alias.name, file_path, ")")
                 import_node = ast.Import(names=[alias])
                 (import_type, import_name_or_path) = get_import_info(import_node, file_path)
                 if alias.asname:

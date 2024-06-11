@@ -18,10 +18,11 @@ from rich import print as rprint
 from rich.console import Console
 import typer
 
-from source_manipulation import \
-    get_function_source, \
+from .source_manipulation import \
+    get_function_source_from_source, \
     get_all_function_names, \
-    resolve_pip_and_builtin_imports_recursive
+    get_pip_imports_recursive, \
+    normalize_imported_modules_in_code
 
 app = typer.Typer()
 
@@ -256,7 +257,7 @@ def analyze():
                         "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
                     return
 
-                function_str = get_function_source(function_str, name)
+                function_str = get_function_source_from_source(function_str, name)
                 if function_str:
                     pass
                 else:
@@ -264,7 +265,7 @@ def analyze():
                         f"found in {file}.")
                     return
             elif len(function_names) == 1:
-                function_str = get_function_source(function_str, function_names[0])
+                function_str = get_function_source_from_source(function_str, function_names[0])
             else:
                 rprint(f"There were no functions in {file}." + \
                     " Cannot continue 😢.")
@@ -284,7 +285,7 @@ def analyze():
 
     pip_imports = []
     try:
-        pip_imports, _ = resolve_pip_and_builtin_imports_recursive(file)
+        pip_imports = get_pip_imports_recursive(file)
     except Exception as e:
         rprint(f"Error trying to resolve pip imports.")
 
@@ -294,7 +295,7 @@ def analyze():
         "test_func": function_str, 
         "patch_requested": patch, 
         "pip_imports": pip_imports,
-        "test_code": resolve_pip_and_builtin_imports_recursive(file)
+        "test_code": normalize_imported_modules_in_code(file)
     }
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)

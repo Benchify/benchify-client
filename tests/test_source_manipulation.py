@@ -1,4 +1,5 @@
 from src.benchify.source_manipulation import \
+    get_function_source_from_source, \
     is_system_package, \
     is_pip_installed_package, \
     get_import_info, \
@@ -9,9 +10,36 @@ from src.benchify.source_manipulation import \
     normalize_imported_modules_in_code, \
     classify, \
     classify_wrap, \
-    find_local_module
+    find_local_module, \
+    get_pip_imports_recursive, \
+    extract_pip_imports
 
 import ast
+
+def test_get_function_source_from_source():
+    test_code = """
+def banana(hotdog):
+    return 10
+
+def xavier():
+    return banana(11)
+
+coolio = 666
+
+print(coolio + 11)
+
+shaggy = lambda x : x ** 2
+"""
+    assert get_function_source_from_source(test_code, "banana").strip() == """
+def banana(hotdog):
+    return 10""".strip()
+
+    assert get_function_source_from_source(test_code, "xavier").strip() == """
+def xavier():
+    return banana(11)""".strip()
+
+    assert get_function_source_from_source(test_code, "shaggy").strip() == """
+shaggy = lambda x : x ** 2""".strip()
 
 def test_is_system_package():
     assert not is_system_package("auth0-python")
@@ -92,7 +120,8 @@ def test_import_info_functions():
     lhs = { 
         ('local', 'tests/fixtures/demo2.py') : [{
             ('local', 'tests/fixtures/demo3.py') : [{
-                ('system', 'os') : []
+                ('system', 'os') : [],
+                ('pip', 'pandas') : []
             }]
         }] 
     }
@@ -103,6 +132,9 @@ def test_import_info_functions():
     lhs[('system', 'sys')] = []
     lhs[('system', 'os')] = []
     lhs[('pip', 'numpy')] = []
+    lhs[('local', 'tests/fixtures/demo2.py')]\
+        [('local', 'tests/fixtures/demo3.py')]\
+        [('pip', 'pandas')] = []
 
     rhs = build_full_import_map(file_path1)
     assert lhs == rhs
@@ -222,6 +254,7 @@ class demo2:
 
     class demo3:
         import os
+        import pandas
         banana = 99
         orange = lambda x: x + 2
     demo3 = demo3()
@@ -239,3 +272,16 @@ def arbitrary_test_function(foo):
     print(a)
     return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
 """.strip()
+
+# def test_get_pip_imports_recursive():
+#     assert get_pip_imports_recursive("tests/fixtures/demo1.py") == [
+#         "numpy",
+#         "pandas"
+#     ]
+
+def test_extract_pip_imports():
+    assert ["pandas"] == extract_pip_imports({
+        ('local', 'tests/fixtures/demo3.py'): [
+            {('system', 'os'): []}, 
+            {('pip', 'pandas'): []}]
+        })
