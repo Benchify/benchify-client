@@ -207,7 +207,7 @@ def get_import_info_recursive(
     # Categorize the node using get_import_info
     category, module_file_path_or_name = get_import_info(node, file_path)
     cur_key = (category, module_file_path_or_name)
-    import_info[cur_key] = []
+    import_info[cur_key] = {}
 
     if category == "system" or category == "pip":
         return import_info
@@ -223,7 +223,11 @@ def get_import_info_recursive(
             sub_import_info = get_import_info_recursive(
                 sub, module_file_path_or_name)
 
-            import_info[cur_key].append(sub_import_info)
+            for key in sub_import_info:
+                value = sub_import_info[key]
+                if not import_info[cur_key]:
+                    import_info[cur_key] = {}
+                import_info[cur_key][key] = value # Could this ever overwrite?
 
     return import_info
 
@@ -271,18 +275,15 @@ def extract_pip_imports(import_map: Dict[Tuple[str, str], Any]) -> List[str]:
         List[str]: The list of packages that need to be pip-installed.
     """
     pip_imports = []
-    for tuple_key in import_map:
-        (import_type, import_name_or_path) = tuple_key
-        sub_imports = import_map[(import_type, import_name_or_path)]
-        print("tuple_key = ", tuple_key, "import_map = ", import_map, "sub_imports = ", sub_imports)
-        if len(sub_imports) > 0:
-            assert import_type == "local"
-            for sub_import in sub_imports:
-                pip_imports.extend(extract_pip_imports(sub_import))
-        
-        if import_type == "pip":
-            pip_imports.append(import_name_or_path)
-        
+    for key in import_map:
+        val = import_map[key]
+        (imp_type, imp_name) = key
+        if len(val) > 0:
+            assert imp_type == "local"
+        if imp_type == "pip":
+            pip_imports.append(imp_name)
+        elif imp_type == "local":
+            pip_imports += extract_pip_imports(val)
     return pip_imports
 
 def get_pip_imports_recursive(the_file: str) -> List[str]:

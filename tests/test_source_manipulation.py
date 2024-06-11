@@ -118,23 +118,23 @@ def test_import_info_functions():
     assert get_import_info(node, file_path1) == ('local', file_path2)
 
     lhs = { 
-        ('local', 'tests/fixtures/demo2.py') : [{
-            ('local', 'tests/fixtures/demo3.py') : [{
-                ('system', 'os') : [],
-                ('pip', 'pandas') : []
-            }]
-        }] 
+        ('local', 'tests/fixtures/demo2.py') : {
+            ('local', 'tests/fixtures/demo3.py') : {
+                ('system', 'os') : {},
+                ('pip', 'pandas') : {}
+            }
+        }
     }
     rhs = get_import_info_recursive(node, file_path1)
     assert lhs == rhs
 
-    lhs[('system', 'platform')] = []
-    lhs[('system', 'sys')] = []
-    lhs[('system', 'os')] = []
-    lhs[('pip', 'numpy')] = []
+    lhs[('system', 'platform')] = {}
+    lhs[('system', 'sys')] = {}
+    lhs[('system', 'os')] = {}
+    lhs[('pip', 'numpy')] = {}
     lhs[('local', 'tests/fixtures/demo2.py')]\
         [('local', 'tests/fixtures/demo3.py')]\
-        [('pip', 'pandas')] = []
+        [('pip', 'pandas')] = {}
 
     rhs = build_full_import_map(file_path1)
     assert lhs == rhs
@@ -273,15 +273,15 @@ def arbitrary_test_function(foo):
     return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
 """.strip()
 
-# def test_get_pip_imports_recursive():
-#     assert get_pip_imports_recursive("tests/fixtures/demo1.py") == [
-#         "numpy",
-#         "pandas"
-#     ]
+def test_get_pip_imports_recursive():
+    assert sorted(get_pip_imports_recursive("tests/fixtures/demo1.py")) == sorted([
+        "numpy",
+        "pandas"
+    ])
 
 def test_extract_pip_imports():
     assert ["pandas"] == extract_pip_imports({
-        ('local', 'tests/fixtures/demo3.py'): [
-            {('system', 'os'): []}, 
-            {('pip', 'pandas'): []}]
-        })
+        ('local', 'tests/fixtures/demo3.py'): {
+            ('system', 'os'): {},
+            ('pip', 'pandas'): {},
+        }})
