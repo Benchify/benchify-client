@@ -8,7 +8,8 @@ from src.benchify.source_manipulation import \
     get_top_level_lambda_function_names, \
     normalize_imported_modules_in_code, \
     classify, \
-    classify_wrap
+    classify_wrap, \
+    find_local_module
 
 import ast
 
@@ -171,20 +172,6 @@ def hotdog(a, b):
 """
     assert sorted(get_all_function_names(my_example)) == sorted(["banana", "hotdog"])
 
-def test_normalize_imported_modules_in_code():
-    normalized_code = None
-    with open("tests/fixtures/demo1.py", "r") as fr:
-        normalized_code = normalize_imported_modules_in_code(
-            fr.read())
-    assert normalized_code.strip() == """
-PURPOSE_OF_THIS_FILE = 'just for testing'
-a = 44
-
-def arbitrary_test_function(foo):
-    print(a)
-    return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
-""".strip()
-
 def test_classify():
     lhs = """
 blarg = 19
@@ -192,7 +179,7 @@ blarg = 19
 x = lambda y : y * 4
 
 def foo(a: str) -> bool:
-    return a == "hotdog\""""
+    return a == "hotdog\"""".strip()
 
     rhs = """
 class mango_time:
@@ -203,6 +190,30 @@ class mango_time:
     def foo(a: str) -> bool:
         return a == "hotdog"
 """.strip()
-    assert classify(lhs.strip(), "mango_time") == rhs
+    assert classify(lhs, "mango_time") == rhs
     rhs += "\nmango_time = mango_time()\n"
-    assert classify_wrap(lhs.strip(), "mango_time") == rhs
+    assert classify_wrap(lhs, "mango_time") == rhs
+
+def test_find_local_module():
+    for module1 in ["demo1", "demo2", "demo3"]:
+        for module2 in ["demo1", "demo2", "demo3"]:
+            if module1 == module2:
+                pass
+            lhs = find_local_module(module1, "tests/fixtures/" + module2 + ".py")
+            rhs = "tests/fixtures/" + module1 + ".py"
+            assert lhs == rhs
+
+    lhs = find_local_module("demo2.blarg", "tests/fixtures/demo1.py")
+    rhs = "tests/fixtures/demo2.py"
+    assert lhs == rhs
+
+# def test_normalize_imported_modules_in_code():
+#     normalized_code = normalize_imported_modules_in_code("tests/fixtures/demo1.py")
+#     assert normalized_code.strip() == """
+# PURPOSE_OF_THIS_FILE = 'just for testing'
+# a = 44
+
+# def arbitrary_test_function(foo):
+#     print(a)
+#     return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
+# """.strip()

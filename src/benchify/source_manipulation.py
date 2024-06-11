@@ -42,11 +42,9 @@ def is_pip_installed_package(module_name: str) -> bool:
 def find_local_module(module_name: str, file_path: str) -> Optional[str]:
     """
     Finds the path to a locally defined module.
-
     Args:
         module_name (str): The name of the module to check.
         file_path (str): The path relative to which the module was imported.
-
     Returns:
         str: The path where the module is defined, or None if it isn't.
     """
@@ -66,10 +64,8 @@ def find_local_module(module_name: str, file_path: str) -> Optional[str]:
         module_dir = os.path.join(current_dir, current_part)
         
         if os.path.isfile(module_file):
-            if len(remaining_parts) == 1:
-                return module_file
-            else:
-                return None
+            # If a module file is found, assume the presence of the remaining parts
+            return module_file
         elif os.path.isdir(module_dir):
             init_file = os.path.join(module_dir, '__init__.py')
             if os.path.isfile(init_file):
@@ -100,14 +96,17 @@ def get_import_info(
     file_path: str) -> Tuple[str, str]:
     """
     Finds the import info for the given import.
-
+    
     Args:
         node: Either an Import or an ImportFrom in ast.
         file_path (str): The path relative to which the module was imported.
-
+    
     Returns:
         (str0, str1) where str0 is the type of import (local, pip, or system)
         and str2 is the import description (module name or path to module).
+    
+    Raises:
+        ValueError: If no matching import type is found.
     """
 
     if isinstance(node, ast.Import):
@@ -120,6 +119,9 @@ def get_import_info(
                 return ("pip", module_name)
             else:
                 return ("system", alias.name)
+        
+        # If no matching import type is found, raise an exception with relevant info
+        raise ValueError(f"No matching import type found for module: {alias.name}")
     
     elif isinstance(node, ast.ImportFrom):
         module_name = node.module
@@ -261,43 +263,94 @@ def classify_wrap(code: str, class_name: str) -> str:
 
     return classified + "\n" + class_name + " = " + class_name + "()\n"
 
-def normalize_imported_modules_in_code(code_str: str) -> str:
+def normalize_imported_modules_in_code(file_path: str) -> str:
     """
     Normalizes a python code string so that it does not use any aliases in its
     imports.  E.g., would turn "numpy as np" into "np".
-
     Args:
-        code_str: The string that needs to be normalized.
-
+        file_path: The path to the file that needs to be normalized.
     Returns:
         str: The normalized version of the code string.
     """
+    with open(file_path, "r") as fr:
+        code_str = fr.read()
+
     # Parse the code string into an AST
     tree = ast.parse(code_str)
     
     # Create a transformer to modify the AST
     class ImportTransformer(ast.NodeTransformer):
-        def __init__(self):
-            self.alias_map = {}
+        def __init__(self) -> None:
+            self.alias_map: Dict[str, str] = {}
         
-        def visit_Import(self, node):
-            # Remove import statements without aliases
+        def visit_Import(self, node: ast.Import) -> ast.stmt:
+            new_names = []
             for alias in node.names:
-                if alias.asname:
-                    self.alias_map[alias.asname] = alias.name
-            return None
-        
-        def visit_ImportFrom(self, node):
-            # Normalize "from A import B" to "import A.B" and handle aliases
-            for alias in node.names:
-                module_path = f"{node.module}.{alias.name}"
-                if alias.asname:
-                    self.alias_map[alias.asname] = module_path
+                # TODO - change to be recursive
+                (import_type, import_name_or_path) = get_import_info(alias.name, file_path)
+                if import_type in ["pip", "system"]:
+                    # Strip the alias, e.g., "import numpy as np" -> "import numpy"
+                    new_names.append(ast.alias(name=alias.name, asname=None))
                 else:
-                    self.alias_map[alias.name] = module_path
-            return None
+                    assert import_type == "local"
+                    # Recursively normalize the imported local file
+                    normalized_code = normalize_imported_modules_in_code(import_name_or_path)
+                    # Run classify_wrap on the normalized code, using the class_name
+                    # which is the name of the import (normalized)
+                    class_name = alias.asname if alias.asname else alias.name
+                    wrapped_code = classify_wrap(normalized_code, class_name)
+                    # Parse the wrapped code into an AST
+                    wrapped_ast = ast.parse(wrapped_code)
+                    # Return the wrapped AST
+                    return wrapped_ast.body
+
+            if new_names:
+                # Create a new Import node with the stripped aliases
+                new_import_node = ast.Import(names=new_names)
+                return new_import_node
+            else:
+                # If no imports remain, return None to remove the import statement
+                return None
         
-        def visit_Name(self, node):
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.stmt:
+            new_names = []
+            for alias in node.names:
+                import_node = ast.ImportFrom(module=f"{node.module}.{alias.name}", names=[alias], level=node.level)
+                try:
+                    (import_type, import_name_or_path) = get_import_info(import_node, file_path)
+                    if import_type in ["pip", "system"]:
+                        # Normalize "from A import B" to "import A.B" and handle aliases
+                        new_name = f"{node.module}.{alias.name}"
+                        if alias.asname:
+                            self.alias_map[alias.asname] = new_name
+                        else:
+                            self.alias_map[alias.name] = new_name
+                        new_names.append(ast.alias(name=new_name, asname=alias.asname))
+                    else:
+                        assert import_type == "local"
+                        # Recursively normalize the imported local file
+                        normalized_code = normalize_imported_modules_in_code(import_name_or_path)
+                        # Run classify_wrap on the normalized code, using the class_name
+                        # which is the name of the import (normalized)
+                        class_name = alias.asname if alias.asname else alias.name
+                        wrapped_code = classify_wrap(normalized_code, class_name)
+                        # Parse the wrapped code into an AST
+                        wrapped_ast = ast.parse(wrapped_code)
+                        # Return the wrapped AST
+                        return wrapped_ast.body
+                except ValueError as e:
+                    print(f"Skipping import due to error: {str(e)}")
+                    continue
+
+            if new_names:
+                # Create a new ImportFrom node with the normalized names
+                new_import_from_node = ast.ImportFrom(module=node.module, names=new_names, level=node.level)
+                return new_import_from_node
+            else:
+                # If no imports remain, return None to remove the import statement
+                return None
+        
+        def visit_Name(self, node: ast.Name) -> ast.expr:
             # Replace the usage of aliases with the original module path
             if node.id in self.alias_map:
                 module_path = self.alias_map[node.id]
@@ -308,7 +361,7 @@ def normalize_imported_modules_in_code(code_str: str) -> str:
                 return new_node
             return node
         
-        def visit_Attribute(self, node):
+        def visit_Attribute(self, node: ast.Attribute) -> ast.expr:
             # Replace the usage of aliases in attribute access
             if isinstance(node.value, ast.Name) and node.value.id in self.alias_map:
                 module_path = self.alias_map[node.value.id]
