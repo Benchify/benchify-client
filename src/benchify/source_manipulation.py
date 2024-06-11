@@ -241,7 +241,27 @@ def get_all_function_names(code_str: str) -> List[str]:
             function_names.append(node.name)
     return function_names + get_top_level_lambda_function_names(ast_tree)
 
-def normalize_imported_modules_in_code_and_remove_imports(code_str: str) -> str:
+def classify(code: str, class_name: str) -> str:
+    assert not " " in class_name
+    assert not "\t" in class_name
+
+    # Indent the provided code
+    indented_code = '\n'.join('    ' + line for line in code.split('\n'))
+
+    # Create the class definition string
+    class_code = f"class {class_name}:\n{indented_code}"
+
+    return class_code
+
+def classify_wrap(code: str, class_name: str) -> str:
+    assert not " " in class_name
+    assert not "\t" in class_name
+
+    classified = classify(code, class_name)
+
+    return classified + "\n" + class_name + " = " + class_name + "()\n"
+
+def normalize_imported_modules_in_code(code_str: str) -> str:
     """
     Normalizes a python code string so that it does not use any aliases in its
     imports.  E.g., would turn "numpy as np" into "np".
@@ -307,4 +327,4 @@ def normalize_imported_modules_in_code_and_remove_imports(code_str: str) -> str:
     normalized_code = ast.unparse(modified_tree)
     
     return normalized_code
-
+    

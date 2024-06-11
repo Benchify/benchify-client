@@ -6,7 +6,9 @@ from src.benchify.source_manipulation import \
     build_full_import_map, \
     get_all_function_names, \
     get_top_level_lambda_function_names, \
-    normalize_imported_modules_in_code_and_remove_imports
+    normalize_imported_modules_in_code, \
+    classify, \
+    classify_wrap
 
 import ast
 
@@ -169,10 +171,10 @@ def hotdog(a, b):
 """
     assert sorted(get_all_function_names(my_example)) == sorted(["banana", "hotdog"])
 
-def test_normalize_imports_in_code():
+def test_normalize_imported_modules_in_code():
     normalized_code = None
     with open("tests/fixtures/demo1.py", "r") as fr:
-        normalized_code = normalize_imported_modules_in_code_and_remove_imports(
+        normalized_code = normalize_imported_modules_in_code(
             fr.read())
     assert normalized_code.strip() == """
 PURPOSE_OF_THIS_FILE = 'just for testing'
@@ -182,3 +184,25 @@ def arbitrary_test_function(foo):
     print(a)
     return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
 """.strip()
+
+def test_classify():
+    lhs = """
+blarg = 19
+
+x = lambda y : y * 4
+
+def foo(a: str) -> bool:
+    return a == "hotdog\""""
+
+    rhs = """
+class mango_time:
+    blarg = 19
+    
+    x = lambda y : y * 4
+    
+    def foo(a: str) -> bool:
+        return a == "hotdog"
+""".strip()
+    assert classify(lhs.strip(), "mango_time") == rhs
+    rhs += "\nmango_time = mango_time()\n"
+    assert classify_wrap(lhs.strip(), "mango_time") == rhs
