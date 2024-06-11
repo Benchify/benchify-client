@@ -282,9 +282,9 @@ def analyze():
             " Cannot continue 😢.")
         return
 
-    pip_imports, builtin_imports = [], []
+    pip_imports = []
     try:
-        pip_imports, builtin_imports = resolve_pip_and_builtin_imports_recursive(file)
+        pip_imports, _ = resolve_pip_and_builtin_imports_recursive(file)
     except Exception as e:
         rprint(f"Error trying to resolve pip imports.")
 
@@ -294,7 +294,7 @@ def analyze():
         "test_func": function_str, 
         "patch_requested": patch, 
         "pip_imports": pip_imports,
-        "builtin_imports": builtin_imports,
+        "test_code": resolve_pip_and_builtin_imports_recursive(file)
     }
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)
