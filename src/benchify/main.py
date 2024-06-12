@@ -290,23 +290,23 @@ def analyze():
         rprint(f"Error trying to resolve pip imports.")
 
     console = Console()
-    url = "https://benchify.cloud/analyze"
+    # url = "https://benchify.cloud/analyze"
+    url = "http://localhost:9091/analyze"
     normalized_code = str(normalize_imported_modules_in_code(file))
 
     print("NORMALIZED CODE:\n\n" + normalized_code)
 
     params = {
-        "test_func": function_str, # This is the function string as it was originally written
-        "patch_requested": patch,  # This indicates whether the user wants a patch
-        "pip_imports": pip_imports, # This is the list of pip imports (recursively) needed for testing
-        "test_code": normalized_code # This is the flattened code we plan to test
+        "test_func": function_str,
+        "patch_requested": patch,
+        "pip_imports": pip_imports,
+        "test_code": normalized_code
     }
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)
     rprint(f"Analyzing.  Should take about {expected_time[0]} ...")
     try:
-        # timeout 5 times longer than the expected, to account for above average times
-        response = requests.get(url, params=params, headers=headers, timeout=expected_time[1]*5)
+        response = requests.post(url, json=params, headers=headers, timeout=expected_time[1]*5)
     except requests.exceptions.Timeout:
         rprint("Timed out")
     console.print(response.text)
