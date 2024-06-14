@@ -1,7 +1,6 @@
 """
 exposes the API for benchify
 """
-import ast
 import os
 import pickle
 import sys
@@ -19,8 +18,12 @@ from rich import print as rprint
 from rich.console import Console
 import typer
 
-from benchify.source_manipulation import \
-    get_function_source, get_all_function_names
+from .source_manipulation import \
+    get_function_source_from_source, \
+    get_all_function_names, \
+    get_pip_imports_recursive, \
+    normalize_imported_modules_in_code, \
+    can_import_via_pip
 
 app = typer.Typer()
 
@@ -244,10 +247,10 @@ def analyze():
         # platform dependent encoding used
         #pylint:disable=unspecified-encoding
         with open(file, "r", encoding=None) as file_reading:
-            function_str = file_reading.read()
-            tree = ast.parse(function_str)
+            # Perhaps not the best name here, since it might have multiple functions?
+            function_str = file_reading.read() 
             # is there more than one function in the file?
-            function_names = get_all_function_names(tree)
+            function_names = get_all_function_names(function_str)
             if len(function_names) > 1:
                 if name == None:
                     rprint("Since there is more than one function in the " + \
@@ -255,8 +258,7 @@ def analyze():
                         "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
                     return
 
-                function_str = get_function_source(
-                    tree, name, function_str)
+                function_str = get_function_source_from_source(function_str, name)
                 if function_str:
                     pass
                 else:
@@ -264,8 +266,7 @@ def analyze():
                         f"found in {file}.")
                     return
             elif len(function_names) == 1:
-                function_str = get_function_source(
-                    tree, function_names[0], function_str)
+                function_str = get_function_source_from_source(function_str, function_names[0])
             else:
                 rprint(f"There were no functions in {file}." + \
                     " Cannot continue 😢.")
@@ -283,15 +284,42 @@ def analyze():
             " Cannot continue 😢.")
         return
 
+    pip_imports = []
+    try:
+        pip_imports = get_pip_imports_recursive(file)
+    except Exception as e:
+        rprint(f"Error trying to resolve pip imports.")
+
+    # Make sure each import can be pip imported
+    print("Computing pip imports.")
+    new_pip_imports = []
+    for pip_import in pip_imports:
+        package_name = pip_import
+        while not can_import_via_pip(package_name):
+            print(f"It looks like we can't get {package_name} by just " + \
+                f"running `pip install {package_name}`. What package do we" + \
+                " need to install to get it?")
+            package_name = input("Package name: ")
+        print(f"Adding {package_name} to pip_imports.")
+        new_pip_imports.append(package_name)
+    pip_imports = new_pip_imports
+
     console = Console()
-    url = "https://benchify.cloud/analyze"
-    params = {'test_func': function_str, "patch_requested": patch}
+    # url = "https://benchify.cloud/analyze"
+    url = "http://localhost:9091/analyze"
+    normalized_code = str(normalize_imported_modules_in_code(file))
+
+    params = {
+        "test_func": function_str,
+        "patch_requested": patch,
+        "pip_imports": pip_imports,
+        "test_code": normalized_code
+    }
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)
     rprint(f"Analyzing.  Should take about {expected_time[0]} ...")
     try:
-        # timeout 5 times longer than the expected, to account for above average times
-        response = requests.get(url, params=params, headers=headers, timeout=expected_time[1]*5)
+        response = requests.post(url, json=params, headers=headers, timeout=expected_time[1]*5)
     except requests.exceptions.Timeout:
         rprint("Timed out")
     console.print(response.text)
