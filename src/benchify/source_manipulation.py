@@ -6,6 +6,12 @@ from typing import List, Optional, Set, Dict, Union, Tuple, Any
 from stdlib_list import stdlib_list
 from pkg_resources import working_set
 import importlib.util
+import requests
+
+
+def can_import_via_pip(module_name: str) -> bool:
+    response = requests.get(f'https://pypi.org/pypi/{module_name}/json')
+    return response.status_code == 200
 
 def get_function_source(ast_tree: ast.AST, function_name: str, code: str) -> Optional[str]:
     """
@@ -364,9 +370,11 @@ def classify_wrap(code: str, class_name: str) -> str:
 def normalize_imported_modules_in_code(file_path: str) -> str:
     """
     Normalizes a python code string so that it does not use any aliases in its
-    imports.  E.g., would turn "numpy as np" into "np".
+    imports.  E.g., would turn "import numpy as np" into "import numpy".
+    
     Args:
         file_path: The path to the file that needs to be normalized.
+    
     Returns:
         str: The normalized version of the code string.
     """
@@ -379,18 +387,16 @@ def normalize_imported_modules_in_code(file_path: str) -> str:
     # Create a transformer to modify the AST
     class ImportTransformer(ast.NodeTransformer):
         def __init__(self) -> None:
-            self.alias_map: Dict[str, str] = {}
-        
+            self.alias_map: dict = {}
+
         def visit_Import(self, node: ast.Import) -> ast.stmt:
             new_names = []
             for alias in node.names:
                 import_node = ast.Import(names=[alias])
-                (import_type, import_name_or_path) = get_import_info(import_node, file_path)
-                if alias.asname:
-                    self.alias_map[alias.asname] = alias.name
+                import_type, import_name_or_path = get_import_info(import_node, file_path)
                 if import_type in ["pip", "system"]:
                     # Strip the alias, e.g., "import numpy as np" -> "import numpy"
-                    new_names.append(ast.alias(name=alias.name, asname=None))
+                    new_names.append(ast.alias(name=alias.name, asname=alias.asname))
                 else:
                     assert import_type == "local"
                     # Recursively normalize the imported local file
@@ -400,6 +406,9 @@ def normalize_imported_modules_in_code(file_path: str) -> str:
                     wrapped_code = classify_wrap(normalized_code, alias.name)
                     # Parse the wrapped code into an AST
                     wrapped_ast = ast.parse(wrapped_code)
+                    # Save the alias for the class
+                    if alias.asname:
+                        self.alias_map[alias.asname] = alias.name
                     # Return the wrapped AST
                     return wrapped_ast.body
 
@@ -410,54 +419,44 @@ def normalize_imported_modules_in_code(file_path: str) -> str:
             else:
                 # If no imports remain, return None to remove the import statement
                 return None
-        
+
         def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.stmt:
             new_names = []
             for alias in node.names:
-                import_node = ast.ImportFrom(module=f"{node.module}.{alias.name}", names=[alias], level=node.level)
-                try:
-                    (import_type, import_name_or_path) = get_import_info(import_node, file_path)
-                    if import_type in ["pip", "system"]:
-                        # Normalize "from A import B" to "import A.B" and handle aliases
-                        new_name = f"{node.module}.{alias.name}"
+                import_node = ast.ImportFrom(module=node.module, names=[alias], level=node.level)
+                import_type, import_name_or_path = get_import_info(import_node, file_path)
+                if import_type in ["pip", "system"]:
+                    # Keep the import as is for pip and system packages, removing aliases
+                    new_names.append(ast.alias(name=alias.name, asname=alias.asname))
+                else:
+                    assert import_type == "local"
+                    # Recursively normalize the imported local file
+                    normalized_code = normalize_imported_modules_in_code(import_name_or_path)
+                    # Run classify_wrap on the normalized code, using the class_name
+                    # which is the name of the import (normalized)
+                    class_name = node.module.split("/")[-1].split(".py")[0]
+                    wrapped_code = classify_wrap(normalized_code, class_name)
+                    # Parse the wrapped code into an AST
+                    wrapped_ast = ast.parse(wrapped_code)
+                    
+                    # Handle aliases for local imports
+                    for alias in node.names:
                         if alias.asname:
-                            self.alias_map[alias.asname] = new_name
-                            new_names.append(ast.alias(name=new_name, asname=alias.asname))
+                            self.alias_map[alias.asname] = f"{class_name}.{alias.name}"
                         else:
-                            self.alias_map[alias.name] = new_name
-                            new_names.append(ast.alias(name=new_name))
-                    else:
-                        assert import_type == "local"
-                        # Recursively normalize the imported local file
-                        normalized_code = normalize_imported_modules_in_code(import_name_or_path)
-                        # Run classify_wrap on the normalized code, using the class_name
-                        # which is the name of the import (normalized)
-                        class_name = node.module.split("/")[-1].split(".py")[0]
-                        wrapped_code = classify_wrap(normalized_code, class_name)
-                        # Parse the wrapped code into an AST
-                        wrapped_ast = ast.parse(wrapped_code)
-                        
-                        # Handle aliases for local imports
-                        for alias in node.names:
-                            if alias.asname:
-                                self.alias_map[alias.asname] = f"{class_name}.{alias.name}"
-                            else:
-                                self.alias_map[alias.name] = f"{class_name}.{alias.name}"
-                        
-                        # Return the wrapped AST
-                        return wrapped_ast.body
-                except (ImportError, ModuleNotFoundError, ValueError) as e:
-                    print(f"Skipping import due to error: {str(e)}")
-                    continue
+                            self.alias_map[alias.name] = f"{class_name}.{alias.name}"
+                    
+                    # Return the wrapped AST
+                    return wrapped_ast.body
 
             if new_names:
-                # Create a new Import node with the normalized names
-                new_import_node = ast.Import(names=new_names)
+                # Create a new ImportFrom node with the normalized names
+                new_import_node = ast.ImportFrom(module=node.module, names=new_names, level=node.level)
                 return new_import_node
             else:
                 # If no imports remain or if the import type is local, return the original node
                 return node
-        
+
         def visit_Name(self, node: ast.Name) -> ast.expr:
             # Replace the usage of aliases with the original module path
             if node.id in self.alias_map:

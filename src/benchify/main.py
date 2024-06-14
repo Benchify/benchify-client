@@ -22,7 +22,8 @@ from .source_manipulation import \
     get_function_source_from_source, \
     get_all_function_names, \
     get_pip_imports_recursive, \
-    normalize_imported_modules_in_code
+    normalize_imported_modules_in_code, \
+    can_import_via_pip
 
 app = typer.Typer()
 
@@ -289,12 +290,24 @@ def analyze():
     except Exception as e:
         rprint(f"Error trying to resolve pip imports.")
 
+    # Make sure each import can be pip imported
+    print("Computing pip imports.")
+    new_pip_imports = []
+    for pip_import in pip_imports:
+        package_name = pip_import
+        while not can_import_via_pip(package_name):
+            print(f"It looks like we can't get {package_name} by just " + \
+                f"running `pip install {package_name}`. What package do we" + \
+                " need to install to get it?")
+            package_name = input("Package name: ")
+        print(f"Adding {package_name} to pip_imports.")
+        new_pip_imports.append(package_name)
+    pip_imports = new_pip_imports
+
     console = Console()
     # url = "https://benchify.cloud/analyze"
     url = "http://localhost:9091/analyze"
     normalized_code = str(normalize_imported_modules_in_code(file))
-
-    print("NORMALIZED CODE:\n\n" + normalized_code)
 
     params = {
         "test_func": function_str,

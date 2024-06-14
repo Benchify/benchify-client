@@ -12,7 +12,8 @@ from src.benchify.source_manipulation import \
     classify_wrap, \
     find_local_module, \
     get_pip_imports_recursive, \
-    extract_pip_imports
+    extract_pip_imports, \
+    can_import_via_pip
 
 import ast
 
@@ -262,15 +263,15 @@ class demo2:
     def blarg(lst):
         return ((lst, lst), demo3.orange(demo3.banana))
 demo2 = demo2()
-import platform
-import sys.platform
+import platform as banana_mango
+from sys import platform
 import os
 import numpy
 a = 44
 
 def arbitrary_test_function(foo):
     print(a)
-    return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), platform.system(), sys.platform(), os.name())
+    return (demo2.blarg(2 * [PURPOSE_OF_THIS_FILE] + [str(foo)]), banana_mango.system(), platform(), os.name())
 """.strip()
 
 def test_get_pip_imports_recursive():
@@ -285,3 +286,8 @@ def test_extract_pip_imports():
             ('system', 'os'): {},
             ('pip', 'pandas'): {},
         }})
+
+def test_can_import_via_pip():
+    assert can_import_via_pip("appdirs")
+    assert can_import_via_pip("requests")
+    assert not can_import_via_pip("this is definitely absolutely not a pip package")
