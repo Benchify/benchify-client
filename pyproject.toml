@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "benchify"
-version = "0.0.15"
+version = "0.0.17"
 authors = [
   { name="Max von Hippel", email="max@benchify.ai" },
   { name="Juan Castaño", email="juan@benchify.ai" },
@@ -37,3 +37,6 @@ benchify = "benchify.main:analyze"
 [project.urls]
 Homepage = "https://github.com/Benchify/benchify-api"
 Issues = "https://github.com/Benchify/benchify-api/issues"
+
+[tool.hatch.build.targets.wheel]
+include = ["benchify/**"]
