@@ -321,6 +321,7 @@ def analyze():
         response = requests.post(url, json=params, headers=headers, timeout=expected_time[1]*5)
     except requests.exceptions.Timeout:
         rprint("Timed out")
+        return
     console.print(response.text)
 
 if __name__ == "__main__":
