@@ -208,6 +208,13 @@ def authenticate():
 #pylint:disable = too-many-return-statements
 @app.command()
 def analyze():
+    help_info_opts = ["-h", "--h", "-help", "--help", "-i", "--i", "-info", "--info"]
+    if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] in help_info_opts):
+        print("What would you like Benchify to analyze? For example: \n" + \
+                "\n\n$ benchify isort.py -p # Analyze the single function in isort.py and suggest a patch." + \
+                "\n\n$ benchify budget.py add_debts # Analyze the add_debts function in budget.py, but don't patch." + \
+                "\n\n$ benchify geom.py dist -p # Analyze the dist function in geom.py and suggest a patch.")
+        return
 
     """
     send the request to analyze the function specified by the command line arguments
@@ -255,7 +262,7 @@ def analyze():
                 if name == None:
                     rprint("Since there is more than one function in the " + \
                         "file, please specify which one you want to " + \
-                        "analyze, e.g., \n$ benchify sortlib.py " + function_names[1])
+                        "analyze, e.g., \n$ benchify " + file + " " + function_names[0])
                     return
 
                 function_str = get_function_source_from_source(function_str, name)
@@ -267,6 +274,7 @@ def analyze():
                     return
             elif len(function_names) == 1:
                 function_str = get_function_source_from_source(function_str, function_names[0])
+                name = function_names[0]
             else:
                 rprint(f"There were no functions in {file}." + \
                     " Cannot continue 😢.")
@@ -322,7 +330,10 @@ def analyze():
     except requests.exceptions.Timeout:
         rprint("Timed out")
         return
+
     console.print(response.text)
+    if "❌" in response.text and patch == False:
+        print("\nWant Benchify to generate a patch for you?  Try $ benchify " + file + " " + name + " -p")
 
 if __name__ == "__main__":
     app()
