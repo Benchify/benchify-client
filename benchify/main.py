@@ -313,7 +313,8 @@ def analyze():
     pip_imports = new_pip_imports
 
     console = Console()
-    url = "https://benchify.cloud/analyze"
+    # url = "https://benchify.cloud/analyze"
+    url = "http://localhost:9091/analyze"
     normalized_code = str(normalize_imported_modules_in_code(file))
 
     params = {
@@ -333,7 +334,7 @@ def analyze():
 
     console.print(response.text)
     if "❌" in response.text and patch == False:
-        print("\nWant Benchify to generate a patch for you?  Try $ benchify " + file + " " + name + " -p")
+        print("\nWant Benchify to generate a patch for you?  Try:\n\tbenchify " + file + " " + name + " -p\n")
 
 if __name__ == "__main__":
     app()
