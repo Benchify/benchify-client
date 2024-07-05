@@ -333,8 +333,9 @@ def analyze():
         return
 
     console.print(response.text)
+    
     if "❌" in response.text and patch == False:
-        print("\nWant Benchify to generate a patch for you?  Try:\n\tbenchify " + file + " " + name + " -p\n")
+        print("\nWant Benchify to generate a patch for you?  Try:\n\n\tbenchify " + file + " " + name + " -p\n")
 
 if __name__ == "__main__":
     app()
