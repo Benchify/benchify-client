@@ -16,6 +16,8 @@ import jwt
 import requests
 from rich import print as rprint
 from rich.console import Console
+from rich.markdown import Markdown
+
 import typer
 
 from .source_manipulation import \
@@ -332,10 +334,34 @@ def analyze():
         rprint("Timed out")
         return
 
-    console.print(response.text)
-    
+    def print_response(response_text: str):
+        # Split the text into lines
+        lines = response_text.split('\n')
+        
+        in_code_block = False
+        code_block = []
+
+        for line in lines:
+            if line.strip() == '```python':
+                in_code_block = True
+                code_block = []
+            elif line.strip() == '```' and in_code_block:
+                in_code_block = False
+                # Print the collected code block
+                console.print(Markdown('```python\n' + '\n'.join(code_block) + '\n```'))
+            elif in_code_block:
+                code_block.append(line)
+            else:
+                # Print non-code lines
+                console.print(line)
+
+    print_response(response.text)
+
     if "❌" in response.text and patch == False:
-        print("\nWant Benchify to generate a patch for you?  Try:\n\n\tbenchify " + file + " " + name + " -p\n")
+        console.print(
+            Markdown(
+                "\nWant Benchify to generate a patch for you?  " + \
+                "Try:\n\n\tbenchify " + file + " " + name + " -p\n"))
 
 if __name__ == "__main__":
     app()
