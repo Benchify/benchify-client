@@ -315,8 +315,8 @@ def analyze():
     pip_imports = new_pip_imports
 
     console = Console()
-    # url = "https://benchify.cloud/analyze"
-    url = "http://localhost:9091/analyze"
+    url = "https://benchify.cloud/analyze"
+    # url = "http://localhost:9091/analyze"
     normalized_code = str(normalize_imported_modules_in_code(file))
 
     params = {
