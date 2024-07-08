@@ -25,7 +25,8 @@ from .source_manipulation import \
     get_all_function_names, \
     get_pip_imports_recursive, \
     normalize_imported_modules_in_code, \
-    can_import_via_pip
+    can_import_via_pip, \
+    replace_block_comments
 
 app = typer.Typer()
 
@@ -257,7 +258,7 @@ def analyze():
         #pylint:disable=unspecified-encoding
         with open(file, "r", encoding=None) as file_reading:
             # Perhaps not the best name here, since it might have multiple functions?
-            function_str = file_reading.read() 
+            function_str = replace_block_comments(file_reading.read())
             # is there more than one function in the file?
             function_names = get_all_function_names(function_str)
             if len(function_names) > 1:

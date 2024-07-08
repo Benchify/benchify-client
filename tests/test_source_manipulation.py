@@ -13,9 +13,29 @@ from src.benchify.source_manipulation import \
     find_local_module, \
     get_pip_imports_recursive, \
     extract_pip_imports, \
-    can_import_via_pip
+    can_import_via_pip, \
+    replace_block_comments
 
 import ast
+
+def test_replace_block_comments():
+    test_code = """
+\"\"\"
+Hotdog
+Banana mango!! # WOW
+\"\"\"
+def foo():
+    return 1
+# ok now
+"""
+    expected_result = """
+# Hotdog
+# Banana mango!! # WOW
+def foo():
+    return 1
+# ok now
+"""
+    assert replace_block_comments(test_code) == expected_result
 
 def test_get_function_source_from_source():
     test_code = """

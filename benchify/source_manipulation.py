@@ -1,13 +1,21 @@
 """
 manipulation of the python file
 """
-import ast, os, subprocess, sys, pytest
+import ast, os, subprocess, sys, pytest, re
 from typing import List, Optional, Set, Dict, Union, Tuple, Any
 from stdlib_list import stdlib_list
 from pkg_resources import working_set
 import importlib.util
 import requests
 
+def replace_block_comments(code):
+    def replacement(match):
+        content = match.group(1).strip()
+        lines = content.split('\n')
+        return '\n'.join(f'# {line.strip()}' for line in lines)
+
+    pattern = r'"""((?:.|\n)*?)"""'
+    return re.sub(pattern, replacement, code, flags=re.DOTALL)
 
 def can_import_via_pip(module_name: str) -> bool:
     response = requests.get(f'https://pypi.org/pypi/{module_name}/json')
