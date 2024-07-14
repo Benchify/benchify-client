@@ -29,6 +29,7 @@ dependencies = [
     "urllib3==1.26.6",
     "stdlib_list",
     "pytest",
+    "setuptools",
 ]
 
 [project.scripts]
