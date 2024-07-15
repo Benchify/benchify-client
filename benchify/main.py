@@ -8,6 +8,8 @@ import time
 from typing import Any, Dict
 import webbrowser
 
+from pathlib import Path
+
 import appdirs
 from auth0.authentication.token_verifier \
     import TokenVerifier, AsymmetricSignatureVerifier
@@ -238,6 +240,8 @@ def analyze():
     patch = False 
     name = None
 
+    file_name = Path(file).name
+
     if len(sys.argv) > 2 and sys.argv[2].strip() in ["-p", "--patch"]:
         patch = True 
     if len(sys.argv) > 3 and sys.argv[3].strip() in ["-p", "--patch"]:
@@ -324,7 +328,8 @@ def analyze():
         "test_func": function_str,
         "patch_requested": patch,
         "pip_imports": pip_imports,
-        "test_code": normalized_code
+        "test_code": normalized_code,
+        "file_name": file_name,
     }
     headers = {'Authorization': f'Bearer {auth_tokens.id_token}'}
     expected_time = ("1 minute", 60)
