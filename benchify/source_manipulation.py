@@ -181,10 +181,11 @@ def get_import_info(
             local_path = find_local_module(module_name, file_path)
             if local_path is not None:
                 return ("local", local_path)
-            elif is_pip_installed_package(module_name):
+            if is_pip_installed_package(module_name):
                 return ("pip", module_name)
-            else:
-                return ("system", alias.name)
+            if can_import_via_pip(module_name):
+                return ("pip", module_name)
+            return ("system", alias.name)
         
         # If no matching import type is found, raise an exception with relevant info
         raise ValueError(f"No matching import type found for module: {alias.name}")
@@ -195,6 +196,8 @@ def get_import_info(
         if local_path is not None:
             return ("local", local_path)
         if is_pip_installed_package(module_name):
+            return ("pip", module_name)
+        if can_import_via_pip(module_name):
             return ("pip", module_name)
         return ("system", module_name)
 
@@ -312,6 +315,7 @@ def get_pip_imports_recursive(the_file: str) -> List[str]:
             any repetitions.
     """
     import_map = build_full_import_map(the_file)
+    print("import_map: ", import_map)
     import_list = extract_pip_imports(import_map)
     new_import_list = []
     for imp in import_list:
