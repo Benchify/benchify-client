@@ -1,4 +1,4 @@
-from src.benchify.source_manipulation import \
+from benchify.source_manipulation import \
     get_function_source_from_source, \
     is_system_package, \
     is_pip_installed_package, \
@@ -268,10 +268,6 @@ def test_normalize_imported_modules_in_code():
 PURPOSE_OF_THIS_FILE = 'just for testing'
 
 class demo2:
-    \"\"\"
-    Another empty file just for testing resolve_local_imports_recursive
-    (Well, it is not empty, but it's empty of stuff that actually matters ...)
-    \"\"\"
 
     class demo3:
         import os

@@ -1,7 +1,7 @@
 """
 manipulation of the python file
 """
-import ast, os, subprocess, sys, pytest, re, tokenize, io
+import ast, astunparse, os, subprocess, sys, pytest, re, tokenize, io
 from typing import List, Optional, Set, Dict, Union, Tuple, Any
 from stdlib_list import stdlib_list
 from pkg_resources import working_set
@@ -443,6 +443,40 @@ def remove_docstrings(code):
     
     return ast.unparse(tree)
 
+def remove_docstrings(code):
+    def remove_docstrings_node(node):
+        if isinstance(node, ast.Module):
+            # Remove module-level docstrings
+            if node.body and isinstance(node.body[0], ast.Expr) and \
+                isinstance(node.body[0].value, ast.Str):
+
+                node.body.pop(0)
+        
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+            # Remove docstrings in functions and classes
+            if node.body and isinstance(node.body[0], ast.Expr) and \
+                isinstance(node.body[0].value, ast.Str):
+
+                node.body.pop(0)
+        
+        # Recursively process all child nodes
+        for child in ast.iter_child_nodes(node):
+            remove_docstrings_node(child)
+        
+        return node
+
+    tree = ast.parse(code)
+    tree = remove_docstrings_node(tree)
+    
+    # Remove any remaining top-level string literals (like in Test Case 1)
+    tree.body = [
+        node for node in tree.body \
+        if not (isinstance(node, ast.Expr) and \
+            isinstance(node.value, ast.Str))
+    ]
+    
+    return ast.unparse(tree)
+
 def normalize_imported_modules_in_code(file_path: str) -> str:
     """
     Normalizes a python code string so that it does not use any aliases in its
@@ -457,7 +491,7 @@ def normalize_imported_modules_in_code(file_path: str) -> str:
     code_str = None
     with open(file_path, "r") as fr:
         code_str = remove_docstrings(fr.read())
-
+        
     # Parse the code string into an AST
     tree = ast.parse(code_str)
     
