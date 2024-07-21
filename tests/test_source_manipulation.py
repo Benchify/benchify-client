@@ -29,17 +29,18 @@ from benchify.source_manipulation import \
 
 import ast
 
-# def test_dont_kill_long_string():
-#     test_code = """
-# foo = \"\"\"
-# I love bananas
-# and bananas love me
-# \"\"\"
+def test_dont_kill_long_string():
+    test_code = """
+foo = \"\"\"
+I love bananas
+and bananas love me
+\"\"\"
 
-# def hotdog():
-#     print(foo)
-# """
-#     assert normalize_imported_modules_in_code(test_code) == test_code
+def hotdog():
+    print(foo)
+    return 1
+"""
+    assert normalize_imported_modules_in_code("fixtures/demo4.py") == test_code
 
 def test_replace_block_comments():
     test_code = """

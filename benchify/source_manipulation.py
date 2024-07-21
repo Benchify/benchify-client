@@ -490,7 +490,7 @@ def normalize_imported_modules_in_code(file_path: str) -> str:
     """
     code_str = None
     with open(file_path, "r") as fr:
-        code_str = remove_docstrings(fr.read())
+        code_str = replace_block_comments(fr.read())
         
     # Parse the code string into an AST
     tree = ast.parse(code_str)
