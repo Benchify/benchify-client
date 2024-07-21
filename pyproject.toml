@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "benchify"
-version = "0.0.26"
+version = "0.0.27"
 authors = [
   { name="Max von Hippel", email="max@benchify.ai" },
   { name="Juan Castaño", email="juan@benchify.ai" },
@@ -30,6 +30,7 @@ dependencies = [
     "stdlib_list",
     "pytest",
     "setuptools",
+    "astunparse",
 ]
 
 [project.scripts]
