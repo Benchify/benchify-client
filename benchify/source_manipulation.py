@@ -315,7 +315,7 @@ def get_pip_imports_recursive(the_file: str) -> List[str]:
             any repetitions.
     """
     import_map = build_full_import_map(the_file)
-    print("import_map: ", import_map)
+    # print("import_map: ", import_map)
     import_list = extract_pip_imports(import_map)
     new_import_list = []
     for imp in import_list:

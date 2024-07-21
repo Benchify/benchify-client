@@ -32,6 +32,10 @@ from .source_manipulation import \
 
 app = typer.Typer()
 
+GCLOUD_URL = "https://benchify.cloud/analyze"
+AWS_URL = "https://api.benchify.com/analyze"
+LOCAL_URL = "http://localhost:9091/analyze"
+
 AUTH0_DOMAIN    = 'benchify.us.auth0.com'
 AUTH0_CLIENT_ID = 'VessO49JLtBhlVXvwbCDkeXZX4mHNLFs'
 ALGORITHMS      = ['RS256']
@@ -320,8 +324,7 @@ def analyze():
     pip_imports = new_pip_imports
 
     console = Console()
-    url = "https://benchify.cloud/analyze"
-    # url = "http://localhost:9091/analyze"
+    url = AWS_URL
     normalized_code = str(normalize_imported_modules_in_code(file))
 
     params = {
