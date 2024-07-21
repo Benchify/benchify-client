@@ -1,3 +1,14 @@
+"""
+file: test_source_manipulation.py
+author: Max von Hippel
+authored: June 2024
+description: Tests the open source Python flattener/inliner in normalize_imported_modules_in_code
+notes: The reason we test this code using unit tests instead of Benchify is because
+we do not yet have a way to strategically generate ASTs or Python programs as input,
+particularly semantically correct ones.  This actually is a very difficult research
+problem.  See e.g., CSmith and CReduce.  If you have a solution to this problem please
+tell me!
+"""
 from benchify.source_manipulation import \
     get_function_source_from_source, \
     is_system_package, \
@@ -17,6 +28,18 @@ from benchify.source_manipulation import \
     replace_block_comments
 
 import ast
+
+# def test_dont_kill_long_string():
+#     test_code = """
+# foo = \"\"\"
+# I love bananas
+# and bananas love me
+# \"\"\"
+
+# def hotdog():
+#     print(foo)
+# """
+#     assert normalize_imported_modules_in_code(test_code) == test_code
 
 def test_replace_block_comments():
     test_code = """
