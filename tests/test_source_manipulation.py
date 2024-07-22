@@ -13,8 +13,7 @@ from benchify.source_manipulation import \
     find_local_module, \
     get_pip_imports_recursive, \
     extract_pip_imports, \
-    can_import_via_pip, \
-    replace_block_comments
+    can_import_via_pip
 
 import ast
 

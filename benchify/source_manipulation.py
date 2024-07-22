@@ -8,15 +8,6 @@ from pkg_resources import working_set
 import importlib.util
 import requests
 
-def replace_block_comments(code):
-    def replacement(match):
-        content = match.group(1).strip()
-        lines = content.split('\n')
-        return '\n'.join(f'# {line.strip()}' for line in lines)
-
-    pattern = r'"""((?:.|\n)*?)"""'
-    return re.sub(pattern, replacement, code, flags=re.DOTALL)
-
 def can_import_via_pip(module_name: str) -> bool:
     response = requests.get(f'https://pypi.org/pypi/{module_name}/json')
     return response.status_code == 200
